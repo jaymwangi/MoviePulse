@@ -1,14 +1,21 @@
-Here is your improved and **GitHub-ready** `README.md`, fully structured and properly formatted for clean rendering with collapsible sections, consistent Markdown syntax, and intuitive layout:
-
----
-
-````markdown
 <p align="center">
   <img src="media_assets/logos/MoviePulseBanner.png" alt="MoviePulse Banner" width="100%" />
 </p>
 
 <h1 align="center">🎬 MoviePulse v2.1</h1>
 <p align="center"><em>Your movie universe — curated, intelligent, and immersive.</em></p>
+
+<p align="center">
+  <a href="https://github.com/jaymwangi/MoviePulse">
+    <img src="https://img.shields.io/github/license/jaymwangi/MoviePulse?style=flat-square" alt="License" />
+  </a>
+  <a href="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square">
+    <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python Version" />
+  </a>
+  <a href="https://github.com/jaymwangi/MoviePulse/commits/main">
+    <img src="https://img.shields.io/github/last-commit/jaymwangi/MoviePulse?style=flat-square" alt="Last Commit" />
+  </a>
+</p>
 
 ---
 
@@ -68,7 +75,7 @@ moviepulse/
 │   ├── 6_🎞️_GenreView.py
 │   ├── 7_🎯_CinephileMode.py
 │   ├── 8_📅_MoodCalendar.py
-│   └── 9⚙️_UserSettings.py
+│   └── 9_⚙️_UserSettings.py
 ├── ui_components/
 │   ├── HeaderBar.py
 │   ├── SidebarFilters.py
@@ -123,9 +130,10 @@ moviepulse/
 │   ├── prewarm_assets.py
 │   └── init_local_db.py
 └── RoadMap.md                   # 28-day dev plan and milestones
-````
+
 
 </details>
+
 
 ---
 
@@ -202,7 +210,7 @@ See [`RoadMap.md`](RoadMap.md) for the full 28-day development plan, feature pri
 ## 🙌 Contributions
 
 Open to feature suggestions, collaborations, and community feedback!
-Feel free to fork, open issues, or submit PRs.
+Feel free to fork, open issues, or submit pull requests.
 
 ---
 
@@ -214,6 +222,3 @@ See the file for full legal permissions and limitations.
 ```
 
 ---
-
-Let me know if you’d like the `README.md` saved as a downloadable file or updated with a demo link, badge, or other branding additions like shields.io stats.
-```
