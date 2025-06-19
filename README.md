@@ -198,6 +198,22 @@ See [`RoadMap.md`](RoadMap.md) for the full 28-day development plan, feature pri
 
 ---
 
+## 🧠 Architecture & User Flow
+
+Visual guides for understanding the app’s internal structure, features, and user interaction patterns:
+
+- 🏗️ [Architecture Diagram (v2.1)](docs/architecture_v2.1.png)  
+  *Shows the modular backend and component flow for MoviePulse.*
+
+- 🧭 [User Flow Map (v2.1)](docs/user_flow_map_v2.1.png)  
+  *Outlines how users interact with the app from entry to recommendations.*
+
+- 🧩 [Feature Map](docs/Feature_map.png)  
+  *Highlights core features, modes, and filters available throughout the app.*
+
+
+---
+
 ## 📸 Screenshots (Coming Soon)
 
 * Home interface with themed search
