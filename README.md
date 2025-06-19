@@ -2,7 +2,7 @@
   <img src="media_assets/logos/MoviePulseBanner.png" alt="MoviePulse Banner" width="100%" />
 </p>
 
-<h1 align="center">🎬 MoviePulse v2.1</h1>
+<h1 align="center">🎬 MoviePulse</h1>
 <p align="center"><em>Your movie universe — curated, intelligent, and immersive.</em></p>
 
 <p align="center">
@@ -130,7 +130,7 @@ moviepulse/
 │   ├── prewarm_assets.py
 │   └── init_local_db.py
 └── RoadMap.md                   # 28-day dev plan and milestones
-
+```
 
 </details>
 
@@ -220,5 +220,3 @@ This project is licensed under the [MIT License](LICENSE).
 See the file for full legal permissions and limitations.
 
 ```
-
----
