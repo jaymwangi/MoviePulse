@@ -16,7 +16,7 @@
     <img src="https://img.shields.io/github/last-commit/jaymwangi/MoviePulse?style=flat-square" alt="Last Commit" />
   </a>
 </p>
-
+ 
 ---
 
 ## 🌟 Overview

@@ -8,7 +8,8 @@ def load_genres() -> List[Dict[str, str]]:
     """Load genre data from static file with error handling"""
     try:
         with open("static_data/genres.json", "r") as f:
-            return json.load(f).get("genres", [])
+            # Directly return the list since that's what your JSON contains
+            return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return [
             {"id": 28, "name": "Action"},

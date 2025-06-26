@@ -1,4 +1,4 @@
-# streamlit_pages/2_🔍_Search.py
+# streamlit_pages/02_Search.py
 import streamlit as st
 from ui_components.HeaderBar import render_app_header
 from ui_components.SidebarFilters import render_sidebar_filters
@@ -34,7 +34,7 @@ def display_search_results():
         with cols[i % 4]:
             st.image(
                 f"media_assets/posters/placeholder_{i%5+1}.png",
-                use_column_width=True,
+                use_container_width=True,
                 caption=f"Result {i+1}"
             )
             st.markdown(f"**Movie Title {i+1}**")
