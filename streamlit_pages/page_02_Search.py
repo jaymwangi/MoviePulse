@@ -4,6 +4,7 @@ from ui_components.HeaderBar import render_app_header
 from ui_components.SidebarFilters import render_sidebar_filters
 from session_utils.state_tracker import init_session_state, get_active_filters
 from media_assets.styles import load_custom_css
+from service_clients.tmdb_client import tmdb_client
 
 def render_search_page():
     """Main search page layout with results display logic"""
@@ -24,21 +25,32 @@ def render_search_page():
             show_empty_state()
 
 def display_search_results():
-    """Displays search results grid (placeholder for now)"""
-    st.subheader(f"Results for: '{st.session_state.global_search_query}'", 
-                divider="red")
-    
-    # Placeholder results - will connect to TMDB API later
-    cols = st.columns(4)
-    for i in range(8):
-        with cols[i % 4]:
-            st.image(
-                f"media_assets/posters/placeholder_{i%5+1}.png",
-                use_container_width=True,
-                caption=f"Result {i+1}"
-            )
-            st.markdown(f"**Movie Title {i+1}**")
-            st.caption(f"202{i%5} • ⭐ {7+i%3}.{i%2}")
+    query = st.session_state.get("global_search_query", "")
+    filters = st.session_state.get("filters", {})
+    if not query:
+        st.warning("No query provided")
+        return
+
+    try:
+        movies, total_pages = tmdb_client.search_movies(query, filters)
+        st.subheader(f"Results for: '{query}'", divider="red")
+
+        if not movies:
+            st.warning("No results found.")
+            return
+
+        cols = st.columns(4)
+        for i, movie in enumerate(movies):
+            with cols[i % 4]:
+                st.image(
+                    movie.poster_path or "media_assets/posters/default.png",
+                    use_container_width=True
+                )
+                st.markdown(f"**{movie.title}**")
+                st.caption(f"{movie.release_date[:4] if movie.release_date else 'N/A'} • ⭐ {movie.vote_average}")
+    except Exception as e:
+        st.error(f"Failed to fetch results: {e}")
+
 
 def show_empty_state():
     """Shows the empty search state with guidance"""

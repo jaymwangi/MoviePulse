@@ -38,21 +38,21 @@ class Movie:
     poster_path: Optional[str] = None
     backdrop_path: Optional[str] = None  # For detail pages
     vote_average: Optional[float] = None  # For sorting/filtering
-    genres: List[Genre] = field(default_factory=list)  # Better than None
+    genres: List[Genre] = field(default_factory=list)
     cast: List[Person] = field(default_factory=list)
     directors: List[Person] = field(default_factory=list)
-    runtime: Optional[int] = None  # Minutes
+    runtime: Optional[int] = None
+    similar_movies: Optional[List[int]] = field(default_factory=list)  # <-- ADD THIS
 
     @property
     def year(self) -> Optional[int]:
-        """Extract year from release_date for quick access."""
         try:
             return int(self.release_date[:4]) if self.release_date else None
         except (ValueError, TypeError):
             return None
 
-# Optional: Add enums for fixed values
-class Role(str, Enum):
-    ACTOR = "actor"
-    DIRECTOR = "director"
-    WRITER = "writer"
+@dataclass
+class Video:
+    key: str
+    type: str
+    site: str

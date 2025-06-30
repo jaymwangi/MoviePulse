@@ -8,18 +8,17 @@ from session_utils.state_tracker import (
 
 def render_app_header():
     """
-    Enhanced app header with:
-    - Dynamic theme-responsive logo
-    - Persistent theme state
-    - Better mobile layout
-    - Reduced layout shifts
+    Clean header component containing only:
+    - Branding/logo
+    - Theme toggle
+    - Navigation elements (no search)
     """
     # Ensure theme is synced (critical for first load)
     sync_theme_to_config()
     
     # ---- 1. HEADER CONTAINER ----
     with st.container():
-        # Use CSS grid for better responsive control
+        # Responsive CSS grid
         st.markdown("""
         <style>
             .header-grid {
@@ -50,10 +49,10 @@ def render_app_header():
         # ---- 2. HEADER GRID ----
         st.markdown('<div class="header-grid">', unsafe_allow_html=True)
         
-        # Left Column - Logo
-        st.markdown("""
+        # Left Column - Branding
+        st.markdown(f"""
         <div style="display: flex; align-items: center; gap: 15px; min-width: 0;">
-            <img src="media_assets/logos/moviepulse_${'dark' if get_current_theme() == 'dark' else 'light'}.png" 
+            <img src="media_assets/logos/moviepulse_{'dark' if get_current_theme() == 'dark' else 'light'}.png" 
                  width="400" 
                  style="max-width: 100%; height: auto;">
             <p style="font-size: 0.9rem; opacity: 0.8; margin: 0; white-space: nowrap;">
@@ -62,24 +61,14 @@ def render_app_header():
         </div>
         """, unsafe_allow_html=True)
         
-        # Right Column - Controls
+        # Right Column - Theme Toggle Only
         with st.container():
-            cols = st.columns([1, 2])
-            with cols[0]:
-                # Theme toggle with dynamic icon
-                st.button(
-                    f"{'🌙' if get_current_theme() == 'dark' else '☀️'}",
-                    on_click=toggle_theme,
-                    help="Toggle theme",
-                    use_container_width=True,
-                    key="header_theme_toggle"
-                )
-            with cols[1]:
-                st.text_input(
-                    "Quick search...", 
-                    key="global_search",
-                    placeholder="🔍 Title, actor, mood",
-                    label_visibility="collapsed"
-                )
+            st.button(
+                f"{'🌙' if get_current_theme() == 'dark' else '☀️'}",
+                on_click=toggle_theme,
+                help="Toggle light/dark mode",
+                use_container_width=True,
+                key="header_theme_toggle"
+            )
         
         st.markdown('</div>', unsafe_allow_html=True)

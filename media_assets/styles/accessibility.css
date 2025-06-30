@@ -1,0 +1,11 @@
+:root {
+    --primary: #0066CC;
+    --bg: #FFFFFF;
+    --text: #000000;
+    --border: #000000;
+}
+
+body {
+    font-size: 1.1em;
+    line-height: 1.6;
+}

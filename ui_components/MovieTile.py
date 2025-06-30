@@ -1,14 +1,16 @@
-# moviepulse/ui_components/MovieTile.py
+# ui_components/MovieTile.py
 import streamlit as st
 from core_config import constants
 import os
+from session_utils.url_formatting import update_query_params
 
 def MovieTile(movie_data, show_details=True, testid_suffix=""):
     """
-    A reusable movie tile component with hover effects, fallback poster handling, and test attributes
+    A reusable movie tile component with hover effects, click behavior, and test attributes
     
     Args:
         movie_data (dict/object): Movie data containing:
+            - id (int): TMDB movie ID
             - poster_path (str): Relative path to poster image
             - title (str): Movie title
             - release_year (str): Release year (optional)
@@ -26,12 +28,9 @@ def MovieTile(movie_data, show_details=True, testid_suffix=""):
             return data.get(attr, default)
         return default
     
-    # Determine poster path
+    # Extract movie attributes
+    movie_id = get_movie_attr(movie_data, 'id')
     poster_path = get_movie_attr(movie_data, 'poster_path')
-    if not poster_path or not os.path.exists(poster_path):
-        poster_path = FALLBACK_POSTER
-    
-    # Get title and year
     title = get_movie_attr(movie_data, 'title', 'Untitled')
     release_year = get_movie_attr(movie_data, 'release_year')
     
@@ -48,6 +47,7 @@ def MovieTile(movie_data, show_details=True, testid_suffix=""):
             border-radius: 8px;
             overflow: hidden;
             margin-bottom: 16px;
+            cursor: pointer;
         }}
         .movie-tile:hover {{
             transform: scale(1.05);
@@ -73,28 +73,51 @@ def MovieTile(movie_data, show_details=True, testid_suffix=""):
     </style>
     """, unsafe_allow_html=True)
     
+    # Create clickable container
     with st.container():
-        st.markdown(
-            f'<div class="movie-tile" data-testid="{tile_testid}">', 
-            unsafe_allow_html=True
-        )
-        
-        st.image(
-            poster_path, 
-            use_container_width=True, 
-            output_format="PNG"
-        )
-        
-        if show_details:
+        # Use columns to make entire area clickable
+        col = st.columns(1)[0]
+        with col:
+            # Create a unique key for each movie
+            tile_key = f"movie_tile_{movie_id}_{testid_suffix}"
+            
+            # Display the movie content
             st.markdown(
-                f'<div class="movie-title" data-testid="{title_testid}">{title}</div>',
+                f'<div class="movie-tile" data-testid="{tile_testid}">', 
                 unsafe_allow_html=True
             )
             
-            if release_year:
+            # Use empty container as click target
+            clicked = st.empty()
+            
+            # Display poster image
+            poster_url = (f"https://image.tmdb.org/t/p/w500{poster_path}" 
+                          if poster_path and not poster_path.startswith("media_assets") 
+                          else poster_path or FALLBACK_POSTER)
+            
+            clicked.image(
+                poster_url,
+                use_container_width=True,
+                output_format="PNG"
+            )
+            
+            if show_details:
                 st.markdown(
-                    f'<div class="movie-year" data-testid="{year_testid}">{release_year}</div>',
+                    f'<div class="movie-title" data-testid="{title_testid}">{title}</div>',
                     unsafe_allow_html=True
                 )
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+                
+                if release_year:
+                    st.markdown(
+                        f'<div class="movie-year" data-testid="{year_testid}">{release_year}</div>',
+                        unsafe_allow_html=True
+                    )
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Add invisible button overlay for click handling
+            if st.button(" ", key=f"invisible_btn_{tile_key}", 
+                        help=f"View details for {title}",
+                        use_container_width=True):
+                update_query_params({"id": str(movie_id)})
+                st.switch_page("pages/3_🎬_MovieDetails.py")

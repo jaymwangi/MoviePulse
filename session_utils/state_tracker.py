@@ -1,7 +1,7 @@
 # session_utils/state_tracker.py
 import streamlit as st
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List,Union
 from dataclasses import dataclass
 
 @dataclass
@@ -130,3 +130,31 @@ def update_styles() -> None:
     """Public method to force CSS reload"""
     _load_theme_css()
     _load_accessibility_css()
+
+def update_watchlist(item: Union[int, Dict], remove: bool = False) -> None:
+    """
+    Add or remove items from watchlist with type safety
+    Args:
+        item: Either movie ID (int) or full movie dict
+        remove: If True, removes the item
+    """
+    if not hasattr(st.session_state, 'watchlist'):
+        st.session_state.watchlist = []
+    
+    if isinstance(item, int):
+        movie_id = item
+    elif isinstance(item, dict):
+        movie_id = item.get('id')
+    else:
+        raise TypeError("Item must be int or dict")
+    
+    if remove:
+        st.session_state.watchlist = [
+            m for m in st.session_state.watchlist 
+            if m.get('id') != movie_id
+        ]
+    elif not any(m.get('id') == movie_id for m in st.session_state.watchlist):
+        if isinstance(item, dict):
+            st.session_state.watchlist.append(item)
+        else:
+            st.session_state.watchlist.append({'id': movie_id})
