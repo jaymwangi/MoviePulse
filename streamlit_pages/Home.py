@@ -15,6 +15,47 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# ----------------------- UTILITY FUNCTIONS -----------------------
+def is_tmdb_available():
+    """Check if TMDB client is available and functional"""
+    return tmdb_client is not None
+
+def show_service_unavailable():
+    """Show consistent service unavailable message"""
+    cols = st.columns([0.3, 0.4, 0.3])
+    with cols[1]:
+        st.error("TMDB service currently unavailable")
+        st.image("media_assets/icons/api_error.png", width=300)
+        if st.button("🔄 Retry Connection", key="retry_connection"):
+            st.rerun()
+
+# ----------------------- CACHED FUNCTIONS -----------------------
+@st.cache_data(ttl=3600, show_spinner="Loading trending movies...")
+def get_cached_trending_movies(time_window="week"):
+    """Get trending movies with caching"""
+    if not is_tmdb_available():
+        raise RuntimeError("TMDB client not available")
+    return tmdb_client.get_trending_movies(time_window=time_window)
+
+@st.cache_data(ttl=600, show_spinner="Searching movies...")
+def cached_search(query, filters=None, page=1):
+    """Cache search results for 10 minutes"""
+    if not is_tmdb_available():
+        raise RuntimeError("TMDB client not available")
+    return tmdb_client.search_movies(
+        query=query,
+        filters=filters,
+        fallback_strategy=st.session_state.search_fallback_strategy,
+        page=page
+    )
+
+@st.cache_data(ttl=86400)  # Cache for 24 hours
+def get_cached_genres():
+    """Get genre list with caching"""
+    if not is_tmdb_available():
+        raise RuntimeError("TMDB client not available")
+    return tmdb_client.get_genres()
+
 # ----------------------- SETUP -----------------------
 def configure_page():
     """Initialize page settings with theme awareness"""
@@ -67,7 +108,7 @@ def render_search_bar():
                 help="Try 'mind-bending sci-fi' or 'Scorsese films'",
                 label_visibility="collapsed",
                 placeholder="Search movies, actors, or moods...",
-                disabled=st.session_state.filter_execution_in_progress
+                disabled=st.session_state.filter_execution_in_progress or not is_tmdb_available()
             )
             
             # Update search state if input changes
@@ -94,6 +135,10 @@ def render_search_results():
     if not st.session_state.get("global_search_query"):
         return
     
+    if not is_tmdb_available():
+        show_service_unavailable()
+        return
+    
     # Show loading state for filter-triggered searches
     if st.session_state.filter_execution_in_progress:
         with st.spinner("🔄 Applying filters..."):
@@ -105,20 +150,10 @@ def render_search_results():
             # Get current filters from sidebar
             filters = get_active_filters()
             
-            # Add retry button if previous attempt failed
-            if st.session_state.get('search_failed'):
-                if st.button("🔄 Retry Search", 
-                           key="retry_search",
-                           disabled=st.session_state.filter_execution_in_progress):
-                    st.session_state.search_failed = False
-                    st.rerun()
-                return
-            
-            # Search with hybrid filtering
-            results, total_pages = tmdb_client.search_movies(
+            # Search with hybrid filtering (using cached version)
+            results, total_pages = cached_search(
                 query=st.session_state.global_search_query,
                 filters=filters,
-                fallback_strategy=st.session_state.search_fallback_strategy,
                 page=st.session_state.current_page
             )
             
@@ -135,11 +170,6 @@ def render_search_results():
                             st.session_state.search_fallback_strategy = FallbackStrategy.RELAX_ALL
                             st.rerun()
                     return
-                
-                # Show filter relaxation warning if applicable
-                if st.session_state.get('filters_were_relaxed'):
-                    st.toast("Showing results with relaxed filters", icon="ℹ️")
-                    st.session_state.filters_were_relaxed = False
                 
                 st.subheader(f"Results for: {st.session_state.global_search_query}", divider="red")
                 
@@ -161,7 +191,6 @@ def render_search_results():
                 MovieGridView(results, columns=4)
 
         except Exception as e:
-            st.session_state.search_failed = True
             cols = st.columns([0.3, 0.4, 0.3])
             with cols[1]:
                 st.error(f"Search failed: {str(e)}")
@@ -174,36 +203,24 @@ def render_trending_section():
     """Trending movies with improved fallback handling"""
     st.subheader("🔥 Trending This Week", divider="red")
     
-    # Show loading state for filter-triggered searches
-    if st.session_state.filter_execution_in_progress:
-        with st.spinner("🔄 Applying filters..."):
-            st.session_state.filter_execution_in_progress = False
-            st.toast("Filters applied successfully!", icon="✅")
+    if not is_tmdb_available():
+        show_service_unavailable()
+        # Show fallback content only if it's not an auth issue
+        MovieGridView([
+            {"title": "Dune 2", "poster_path": "media_assets/posters/dune2.jpg"},
+            {"title": "Oppenheimer", "poster_path": "media_assets/posters/oppenheimer.jpg"},
+        ], columns=5)
+        return
     
     try:
-        filters = get_active_filters()
-        
-        trending_movies = tmdb_client.get_trending_movies(
-            time_window="week",
-            filters=filters,
-            fallback_strategy=FallbackStrategy.RELAX_GRADUAL
-        )
+        trending_movies, _ = get_cached_trending_movies(time_window="week")
         
         if not trending_movies:
             cols = st.columns([0.3, 0.4, 0.3])
             with cols[1]:
-                st.warning("No trending movies match your filters")
+                st.warning("No trending movies found")
                 st.image("media_assets/icons/no_results.png", width=300)
-                if st.button("Show Popular Movies Anyway",
-                           disabled=st.session_state.filter_execution_in_progress):
-                    st.session_state.search_fallback_strategy = FallbackStrategy.RELAX_ALL
-                    st.rerun()
             return
-            
-        # Show filter relaxation notice if applicable
-        if st.session_state.get('trending_filters_relaxed'):
-            st.toast("Showing trending movies with relaxed filters", icon="ℹ️")
-            st.session_state.trending_filters_relaxed = False
             
         MovieGridView(trending_movies, columns=5)
         
@@ -212,15 +229,13 @@ def render_trending_section():
         with cols[1]:
             st.error(f"Couldn't load trending movies: {str(e)}")
             st.image("media_assets/icons/api_error.png", width=300)
-            if st.button("Try Loading Again",
-                       disabled=st.session_state.filter_execution_in_progress):
-                st.rerun()
-        
-        # Fallback to static content
-        MovieGridView([
-            {"title": "Dune 2", "poster_path": "media_assets/posters/dune2.jpg"},
-            {"title": "Oppenheimer", "poster_path": "media_assets/posters/oppenheimer.jpg"},
-        ], columns=5)
+            
+        # Only show fallback if it's not an API key issue
+        if "401" not in str(e):
+            MovieGridView([
+                {"title": "Dune 2", "poster_path": "media_assets/posters/dune2.jpg"},
+                {"title": "Oppenheimer", "poster_path": "media_assets/posters/oppenheimer.jpg"},
+            ], columns=5)
 
 def render_advanced_search_options():
     """Additional search controls in sidebar"""
@@ -239,7 +254,7 @@ def render_advanced_search_options():
                 FallbackStrategy.RELAX_GRADUAL: "Smart relaxation (recommended)",
                 FallbackStrategy.RELAX_ALL: "Show any results"
             }[x],
-            disabled=st.session_state.filter_execution_in_progress
+            disabled=st.session_state.filter_execution_in_progress or not is_tmdb_available()
         )
         
         if st.session_state.search_history:
@@ -254,6 +269,18 @@ def render_advanced_search_options():
 
 def render_sidebar_filters_with_loading():
     """Wrapper for sidebar filters with loading state"""
+    if not is_tmdb_available():
+        st.sidebar.warning("Filters unavailable - service disconnected")
+        return
+    
+    # Load genres into cache if not already loaded
+    if 'genres' not in st.session_state:
+        try:
+            st.session_state.genres = get_cached_genres()
+        except Exception as e:
+            st.sidebar.error("Couldn't load genres")
+            return
+    
     if st.session_state.filter_execution_in_progress:
         with st.spinner("Applying filters..."):
             render_sidebar_filters()
@@ -266,21 +293,22 @@ def render_sidebar_filters_with_loading():
         st.session_state.filters_changed = False
         st.rerun()
 
+
 def render_app_footer():
-    """Theme-aware footer"""
-    st.markdown("""
+    """Theme-aware footer with service status"""
+    status = "✅ Online" if is_tmdb_available() else "❌ Offline"
+    st.markdown(f"""
     <div style="text-align: center; margin-top: 4rem; padding: 1rem; opacity: 0.6;">
-        <p>© 2024 MoviePulse | Data from TMDB | v2.3</p>
+        <p>© 2024 MoviePulse | Data from TMDB | Service: {status} | v2.4</p>
     </div>
     """, unsafe_allow_html=True)
-
 
 # ----------------------- MAIN EXECUTION -----------------------
 if __name__ == "__main__":
     configure_page()
     
     # Layout structure
-    render_app_header()  # Now contains only branding/theme toggle
+    render_app_header()
     
     # Sidebar components
     with st.sidebar:
@@ -289,9 +317,9 @@ if __name__ == "__main__":
     
     # Main content area
     if not st.session_state.global_search_query:
-        render_hero_section()  # Only show hero when no search active
+        render_hero_section()
     
-    render_search_bar()  # Single search bar in main content
+    render_search_bar()
     
     # Conditional content display
     if st.session_state.global_search_query:

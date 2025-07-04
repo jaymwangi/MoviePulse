@@ -1,0 +1,791 @@
+{
+  "1245": {
+    "name": "Scarlett Johansson",
+    "similar_actors": []
+  },
+  "18277": {
+    "name": "Sandra Bullock",
+    "similar_actors": []
+  },
+  "115440": {
+    "name": "Sydney Sweeney",
+    "similar_actors": []
+  },
+  "976": {
+    "name": "Jason Statham",
+    "similar_actors": []
+  },
+  "2005186": {
+    "name": "Jane Wong",
+    "similar_actors": []
+  },
+  "974169": {
+    "name": "Jenna Ortega",
+    "similar_actors": []
+  },
+  "1892": {
+    "name": "Matt Damon",
+    "similar_actors": []
+  },
+  "1522703": {
+    "name": "Hande Er\u00e7el",
+    "similar_actors": [
+      {
+        "actor_id": 1397246,
+        "similarity": 0.16666666666666666,
+        "common_movies": 1
+      }
+    ]
+  },
+  "55256": {
+    "name": "Julie Ann Emery",
+    "similar_actors": []
+  },
+  "224513": {
+    "name": "Ana de Armas",
+    "similar_actors": []
+  },
+  "2627786": {
+    "name": "Chae Kook-hee",
+    "similar_actors": []
+  },
+  "28782": {
+    "name": "Monica Bellucci",
+    "similar_actors": []
+  },
+  "6384": {
+    "name": "Keanu Reeves",
+    "similar_actors": []
+  },
+  "117642": {
+    "name": "Jason Momoa",
+    "similar_actors": []
+  },
+  "62105": {
+    "name": "Kerry Condon",
+    "similar_actors": []
+  },
+  "5172958": {
+    "name": "Ayumi Takahashi",
+    "similar_actors": []
+  },
+  "1253360": {
+    "name": "Pedro Pascal",
+    "similar_actors": []
+  },
+  "64": {
+    "name": "Gary Oldman",
+    "similar_actors": []
+  },
+  "500": {
+    "name": "Tom Cruise",
+    "similar_actors": []
+  },
+  "10990": {
+    "name": "Emma Watson",
+    "similar_actors": []
+  },
+  "11701": {
+    "name": "Angelina Jolie",
+    "similar_actors": []
+  },
+  "1373737": {
+    "name": "Florence Pugh",
+    "similar_actors": []
+  },
+  "12835": {
+    "name": "Vin Diesel",
+    "similar_actors": []
+  },
+  "287": {
+    "name": "Brad Pitt",
+    "similar_actors": []
+  },
+  "19537": {
+    "name": "Megan Fox",
+    "similar_actors": []
+  },
+  "109513": {
+    "name": "Alexandra Daddario",
+    "similar_actors": []
+  },
+  "53862": {
+    "name": "Kaley Cuoco",
+    "similar_actors": []
+  },
+  "587020": {
+    "name": "Theo James",
+    "similar_actors": []
+  },
+  "1373074": {
+    "name": "Alissa Yagi",
+    "similar_actors": []
+  },
+  "3165040": {
+    "name": "Rika",
+    "similar_actors": []
+  },
+  "2302863": {
+    "name": "Chris Robinson",
+    "similar_actors": []
+  },
+  "18897": {
+    "name": "Jackie Chan",
+    "similar_actors": []
+  },
+  "131": {
+    "name": "Jake Gyllenhaal",
+    "similar_actors": []
+  },
+  "6885": {
+    "name": "Charlize Theron",
+    "similar_actors": []
+  },
+  "29369": {
+    "name": "Melanie Griffith",
+    "similar_actors": []
+  },
+  "1269": {
+    "name": "Kevin Costner",
+    "similar_actors": []
+  },
+  "3392": {
+    "name": "Michael Douglas",
+    "similar_actors": []
+  },
+  "3164807": {
+    "name": "Yoon Yool",
+    "similar_actors": []
+  },
+  "25002": {
+    "name": "Lee Byung-hun",
+    "similar_actors": []
+  },
+  "219763": {
+    "name": "Charlotte Spencer",
+    "similar_actors": []
+  },
+  "52848": {
+    "name": "Isla Fisher",
+    "similar_actors": []
+  },
+  "29222": {
+    "name": "Zac Efron",
+    "similar_actors": []
+  },
+  "118545": {
+    "name": "Dakota Johnson",
+    "similar_actors": []
+  },
+  "1239253": {
+    "name": "Demord Dann",
+    "similar_actors": []
+  },
+  "1136406": {
+    "name": "Tom Holland",
+    "similar_actors": [
+      {
+        "actor_id": 505710,
+        "similarity": 0.1076923076923077,
+        "common_movies": 7
+      },
+      {
+        "actor_id": 505710,
+        "similarity": 0.1076923076923077,
+        "common_movies": 7
+      }
+    ]
+  },
+  "2888": {
+    "name": "Will Smith",
+    "similar_actors": []
+  },
+  "3223": {
+    "name": "Robert Downey Jr.",
+    "similar_actors": []
+  },
+  "17276": {
+    "name": "Gerard Butler",
+    "similar_actors": []
+  },
+  "19498": {
+    "name": "Jon Bernthal",
+    "similar_actors": []
+  },
+  "60959": {
+    "name": "Jackie Sandler",
+    "similar_actors": []
+  },
+  "17053": {
+    "name": "Annika Blendl",
+    "similar_actors": []
+  },
+  "2604515": {
+    "name": "Emma Myers",
+    "similar_actors": []
+  },
+  "1236264": {
+    "name": "Liu Tao",
+    "similar_actors": []
+  },
+  "6193": {
+    "name": "Leonardo DiCaprio",
+    "similar_actors": []
+  },
+  "49624": {
+    "name": "Jensen Ackles",
+    "similar_actors": []
+  },
+  "16483": {
+    "name": "Sylvester Stallone",
+    "similar_actors": []
+  },
+  "18050": {
+    "name": "Elle Fanning",
+    "similar_actors": []
+  },
+  "2049994": {
+    "name": "Zhao Lusi",
+    "similar_actors": [
+      {
+        "actor_id": 3067811,
+        "similarity": 0.16666666666666666,
+        "common_movies": 1
+      }
+    ]
+  },
+  "192": {
+    "name": "Morgan Freeman",
+    "similar_actors": []
+  },
+  "1190668": {
+    "name": "Timoth\u00e9e Chalamet",
+    "similar_actors": []
+  },
+  "15112": {
+    "name": "Tom Selleck",
+    "similar_actors": []
+  },
+  "1152083": {
+    "name": "Sabrina Carpenter",
+    "similar_actors": []
+  },
+  "19728": {
+    "name": "Mark Harmon",
+    "similar_actors": []
+  },
+  "85721": {
+    "name": "Tamannaah Bhatia",
+    "similar_actors": []
+  },
+  "2524": {
+    "name": "Tom Hardy",
+    "similar_actors": []
+  },
+  "3424435": {
+    "name": "Yoo Ji-hyun",
+    "similar_actors": []
+  },
+  "368": {
+    "name": "Reese Witherspoon",
+    "similar_actors": []
+  },
+  "3126573": {
+    "name": "Choi Hyun-wook",
+    "similar_actors": []
+  },
+  "73968": {
+    "name": "Henry Cavill",
+    "similar_actors": []
+  },
+  "1253391": {
+    "name": "Ji Chang-wook",
+    "similar_actors": []
+  },
+  "380": {
+    "name": "Robert De Niro",
+    "similar_actors": []
+  },
+  "112": {
+    "name": "Cate Blanchett",
+    "similar_actors": []
+  },
+  "2786960": {
+    "name": "Gabriel Guevara",
+    "similar_actors": [
+      {
+        "actor_id": 2527414,
+        "similarity": 0.2727272727272727,
+        "common_movies": 3
+      }
+    ]
+  },
+  "31": {
+    "name": "Tom Hanks",
+    "similar_actors": []
+  },
+  "34486": {
+    "name": "Ashley Johnson",
+    "similar_actors": []
+  },
+  "20652": {
+    "name": "Cecilia Cheung",
+    "similar_actors": []
+  },
+  "4587": {
+    "name": "Halle Berry",
+    "similar_actors": []
+  },
+  "2359937": {
+    "name": "Jo Yu-ri",
+    "similar_actors": []
+  },
+  "554828": {
+    "name": "Marcel Leboeuf",
+    "similar_actors": []
+  },
+  "17303": {
+    "name": "Ali Larter",
+    "similar_actors": []
+  },
+  "38673": {
+    "name": "Channing Tatum",
+    "similar_actors": []
+  },
+  "4845074": {
+    "name": "Joo Ye-bin",
+    "similar_actors": []
+  },
+  "3176248": {
+    "name": "Tian Xuning",
+    "similar_actors": []
+  },
+  "2439184": {
+    "name": "Chen Zheyuan",
+    "similar_actors": []
+  },
+  "3896": {
+    "name": "Liam Neeson",
+    "similar_actors": []
+  },
+  "524": {
+    "name": "Natalie Portman",
+    "similar_actors": []
+  },
+  "204": {
+    "name": "Kate Winslet",
+    "similar_actors": []
+  },
+  "3247875": {
+    "name": "Yang Mal-bok",
+    "similar_actors": []
+  },
+  "2365187": {
+    "name": "Liu Yuning",
+    "similar_actors": []
+  },
+  "565343": {
+    "name": "Dong Xuan",
+    "similar_actors": []
+  },
+  "3010184": {
+    "name": "Hee-jeong",
+    "similar_actors": []
+  },
+  "1907997": {
+    "name": "Min Do-yoon",
+    "similar_actors": []
+  },
+  "1428070": {
+    "name": "Isabela Merced",
+    "similar_actors": []
+  },
+  "30614": {
+    "name": "Ryan Gosling",
+    "similar_actors": []
+  },
+  "1278873": {
+    "name": "Maleena Khan",
+    "similar_actors": []
+  },
+  "1837297": {
+    "name": "Damson Idris",
+    "similar_actors": []
+  },
+  "1856185": {
+    "name": "Yoo Seo-jin",
+    "similar_actors": []
+  },
+  "3067811": {
+    "name": "Zhou Yiran",
+    "similar_actors": [
+      {
+        "actor_id": 2050456,
+        "similarity": 0.2,
+        "common_movies": 1
+      },
+      {
+        "actor_id": 2049994,
+        "similarity": 0.16666666666666666,
+        "common_movies": 1
+      }
+    ]
+  },
+  "13240": {
+    "name": "Mark Wahlberg",
+    "similar_actors": []
+  },
+  "114": {
+    "name": "Orlando Bloom",
+    "similar_actors": []
+  },
+  "3086996": {
+    "name": "He Congrui",
+    "similar_actors": []
+  },
+  "1397246": {
+    "name": "Bar\u0131\u015f Ardu\u00e7",
+    "similar_actors": [
+      {
+        "actor_id": 1522703,
+        "similarity": 0.16666666666666666,
+        "common_movies": 1
+      }
+    ]
+  },
+  "26723": {
+    "name": "Katheryn Winnick",
+    "similar_actors": []
+  },
+  "1879666": {
+    "name": "Bai Lu",
+    "similar_actors": []
+  },
+  "1019": {
+    "name": "Mads Mikkelsen",
+    "similar_actors": []
+  },
+  "3235180": {
+    "name": "Kang Young-suk",
+    "similar_actors": []
+  },
+  "3897": {
+    "name": "Katie Holmes",
+    "similar_actors": []
+  },
+  "72129": {
+    "name": "Jennifer Lawrence",
+    "similar_actors": []
+  },
+  "4174": {
+    "name": "Claire Forlani",
+    "similar_actors": []
+  },
+  "71070": {
+    "name": "Amanda Seyfried",
+    "similar_actors": []
+  },
+  "573984": {
+    "name": "Jens Atzorn",
+    "similar_actors": []
+  },
+  "1172108": {
+    "name": "Mckenna Grace",
+    "similar_actors": []
+  },
+  "80860": {
+    "name": "Jonathan Bailey",
+    "similar_actors": []
+  },
+  "505710": {
+    "name": "Zendaya",
+    "similar_actors": [
+      {
+        "actor_id": 1136406,
+        "similarity": 0.1076923076923077,
+        "common_movies": 7
+      }
+    ]
+  },
+  "18918": {
+    "name": "Dwayne Johnson",
+    "similar_actors": []
+  },
+  "1397778": {
+    "name": "Anya Taylor-Joy",
+    "similar_actors": []
+  },
+  "55638": {
+    "name": "Kevin Hart",
+    "similar_actors": []
+  },
+  "119592": {
+    "name": "Aubrey Plaza",
+    "similar_actors": []
+  },
+  "1813": {
+    "name": "Anne Hathaway",
+    "similar_actors": []
+  },
+  "1319939": {
+    "name": "Yda Manzano",
+    "similar_actors": [
+      {
+        "actor_id": 3878240,
+        "similarity": 0.13636363636363635,
+        "common_movies": 3
+      }
+    ]
+  },
+  "1955840": {
+    "name": "Afra Sara\u00e7o\u011flu",
+    "similar_actors": []
+  },
+  "1461": {
+    "name": "George Clooney",
+    "similar_actors": []
+  },
+  "1424928": {
+    "name": "Burak \u00d6z\u00e7ivit",
+    "similar_actors": []
+  },
+  "3292": {
+    "name": "Nicholas Hoult",
+    "similar_actors": []
+  },
+  "42803": {
+    "name": "Ajay Devgn",
+    "similar_actors": []
+  },
+  "18973": {
+    "name": "Mila Kunis",
+    "similar_actors": []
+  },
+  "1817": {
+    "name": "Linda Cardellini",
+    "similar_actors": []
+  },
+  "148881": {
+    "name": "Aarif Rahman",
+    "similar_actors": []
+  },
+  "1814297": {
+    "name": "Lee Soo",
+    "similar_actors": []
+  },
+  "1204": {
+    "name": "Julia Roberts",
+    "similar_actors": []
+  },
+  "3247402": {
+    "name": "Clara Galle",
+    "similar_actors": []
+  },
+  "2065258": {
+    "name": "Cemre Baysel",
+    "similar_actors": []
+  },
+  "2034418": {
+    "name": "Jacob Elordi",
+    "similar_actors": []
+  },
+  "1982522": {
+    "name": "Song Weilong",
+    "similar_actors": []
+  },
+  "85": {
+    "name": "Johnny Depp",
+    "similar_actors": []
+  },
+  "3091887": {
+    "name": "Zhang Linghe",
+    "similar_actors": []
+  },
+  "1161474": {
+    "name": "Yuki Yamada",
+    "similar_actors": []
+  },
+  "2462819": {
+    "name": "\u00d6zge T\u00f6rer",
+    "similar_actors": []
+  },
+  "2037": {
+    "name": "Cillian Murphy",
+    "similar_actors": []
+  },
+  "26054": {
+    "name": "Claudia Black",
+    "similar_actors": []
+  },
+  "3194501": {
+    "name": "HoYeon",
+    "similar_actors": []
+  },
+  "2461": {
+    "name": "Mel Gibson",
+    "similar_actors": []
+  },
+  "17838": {
+    "name": "Rami Malek",
+    "similar_actors": []
+  },
+  "555955": {
+    "name": "Rieko Miura",
+    "similar_actors": []
+  },
+  "15111": {
+    "name": "Jean-Claude Van Damme",
+    "similar_actors": []
+  },
+  "1374515": {
+    "name": "Lee Yeon-doo",
+    "similar_actors": []
+  },
+  "51797": {
+    "name": "Nathan Fillion",
+    "similar_actors": []
+  },
+  "10859": {
+    "name": "Ryan Reynolds",
+    "similar_actors": []
+  },
+  "2590519": {
+    "name": "Han Yi-seul",
+    "similar_actors": []
+  },
+  "1939676": {
+    "name": "Drew Starkey",
+    "similar_actors": []
+  },
+  "5081": {
+    "name": "Emily Blunt",
+    "similar_actors": []
+  },
+  "3186373": {
+    "name": "Cha Woo-min",
+    "similar_actors": []
+  },
+  "2431308": {
+    "name": "Davina Karamoy",
+    "similar_actors": []
+  },
+  "1356210": {
+    "name": "Millie Bobby Brown",
+    "similar_actors": []
+  },
+  "3775928": {
+    "name": "Julia Victoria",
+    "similar_actors": []
+  },
+  "206905": {
+    "name": "Jeremy Allen White",
+    "similar_actors": []
+  },
+  "206": {
+    "name": "Jim Carrey",
+    "similar_actors": []
+  },
+  "125025": {
+    "name": "Joey King",
+    "similar_actors": []
+  },
+  "37995": {
+    "name": "Bo Derek",
+    "similar_actors": []
+  },
+  "3878240": {
+    "name": "Christy Imperial",
+    "similar_actors": [
+      {
+        "actor_id": 1319939,
+        "similarity": 0.13636363636363635,
+        "common_movies": 3
+      }
+    ]
+  },
+  "2025252": {
+    "name": "Ester Exp\u00f3sito",
+    "similar_actors": []
+  },
+  "116": {
+    "name": "Keira Knightley",
+    "similar_actors": []
+  },
+  "108889": {
+    "name": "Jay Harrington",
+    "similar_actors": []
+  },
+  "2963": {
+    "name": "Nicolas Cage",
+    "similar_actors": []
+  },
+  "2050456": {
+    "name": "Dylan Wang",
+    "similar_actors": [
+      {
+        "actor_id": 3067811,
+        "similarity": 0.2,
+        "common_movies": 1
+      }
+    ]
+  },
+  "297502": {
+    "name": "Cote de Pablo",
+    "similar_actors": []
+  },
+  "37625": {
+    "name": "Andrew Garfield",
+    "similar_actors": []
+  },
+  "25246": {
+    "name": "Andy Lau",
+    "similar_actors": []
+  },
+  "2527414": {
+    "name": "Nicole Wallace",
+    "similar_actors": [
+      {
+        "actor_id": 2786960,
+        "similarity": 0.2727272727272727,
+        "common_movies": 3
+      },
+      {
+        "actor_id": 2786960,
+        "similarity": 0.2727272727272727,
+        "common_movies": 3
+      }
+    ]
+  },
+  "2231": {
+    "name": "Samuel L. Jackson",
+    "similar_actors": []
+  },
+  "1078769": {
+    "name": "K\u0131van\u00e7 Tatl\u0131tu\u011f",
+    "similar_actors": []
+  },
+  "1974009": {
+    "name": "Kim Do-hee",
+    "similar_actors": []
+  },
+  "1584434": {
+    "name": "Deniz Can Akta\u015f",
+    "similar_actors": []
+  },
+  "4770618": {
+    "name": "Zi Yu",
+    "similar_actors": []
+  },
+  "20372": {
+    "name": "Edison Chen",
+    "similar_actors": []
+  },
+  "933238": {
+    "name": "Rebecca Ferguson",
+    "similar_actors": []
+  },
+  "2374721": {
+    "name": "Han Seo-ah",
+    "similar_actors": []
+  }
+}

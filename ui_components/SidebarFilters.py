@@ -5,36 +5,20 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from urllib.parse import parse_qs
 from session_utils.state_tracker import get_current_theme
+from session_utils.session_helpers import load_genres, load_moods
 
 # Constants
 DEFAULT_YEAR_RANGE = (2000, datetime.now().year)
-DEFAULT_RATING_RANGE = (7.0, 10.0)  # Changed to range
-DEFAULT_POPULARITY_RANGE = (0, 100)  # Added popularity
+DEFAULT_RATING_RANGE = (7.0, 10.0)
+DEFAULT_POPULARITY_RANGE = (0, 100)
 GENRES_FILE = "static_data/genres.json"
 DEBOUNCE_TIME = 0.5  # Seconds to wait before applying filter changes
-
-def load_genres() -> List[Dict[str, str]]:
-    """Load genre data with robust error handling"""
-    try:
-        with open(GENRES_FILE, "r") as f:
-            genres = json.load(f)
-            if not isinstance(genres, list):
-                raise ValueError("Invalid genre data format")
-            return genres
-    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
-        st.error(f"⚠️ Couldn't load genres: {str(e)}")
-        return [
-            {"id": 28, "name": "Action"},
-            {"id": 12, "name": "Adventure"},
-            {"id": 16, "name": "Animation"}
-        ]  # Fallback basic genres
 
 def _init_session_state():
     """Initialize session state with URL params or defaults"""
     if "filter_init_complete" not in st.session_state:
         url_params = st.query_params.to_dict()
         
-        # Helper function to safely parse values
         def safe_parse(value, type_func, default=None):
             try:
                 return type_func(value) if value else default
@@ -44,6 +28,7 @@ def _init_session_state():
         # Initialize with defaults or URL values
         st.session_state.update({
             "selected_genres": url_params.get("genres", "").split(",") if url_params.get("genres") else [],
+            "selected_moods": [int(m) for m in url_params.get("moods", "").split(",") if m.isdigit()] if url_params.get("moods") else [],
             "year_range": (
                 safe_parse(url_params.get("year_min"), int, DEFAULT_YEAR_RANGE[0]),
                 safe_parse(url_params.get("year_max"), int, DEFAULT_YEAR_RANGE[1])
@@ -74,6 +59,14 @@ def _validate_current_state():
         g for g in st.session_state.selected_genres 
         if g in valid_genres
     ]
+    
+    # Validate moods
+    valid_mood_ids = [mood["id"] for mood in load_moods()]
+    st.session_state.selected_moods = [
+        m for m in st.session_state.selected_moods
+        if m in valid_mood_ids
+    ]
+    
     
     # Validate year values
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
@@ -109,6 +102,7 @@ def _sync_state_to_url():
     """Update URL parameters to reflect current filters"""
     params = {
         "genres": ",".join(st.session_state.selected_genres),
+        "moods": ",".join(map(str, st.session_state.selected_moods)),
         "year_min": str(st.session_state.year_range[0]),
         "year_max": str(st.session_state.year_range[1]),
         "rating_min": str(st.session_state.rating_range[0]),
@@ -117,7 +111,6 @@ def _sync_state_to_url():
         "popularity_max": str(st.session_state.popularity_range[1])
     }
     
-    # Add exact values if they exist
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
         params["exact_year"] = str(st.session_state.exact_year)
     if st.session_state.rating_filter_mode == "exact" and st.session_state.exact_rating:
@@ -127,18 +120,11 @@ def _sync_state_to_url():
     
     st.query_params.update(**params)
 
-def _should_trigger_search() -> bool:
-    """Determine if filters have changed enough to trigger search"""
-    if "last_filter_change" not in st.session_state:
-        return True
-        
-    time_since_change = datetime.now().timestamp() - st.session_state.last_filter_change
-    return time_since_change >= DEBOUNCE_TIME
-
 def reset_filters():
-    """Reset all filters to defaults with visual feedback"""
+    """Reset all filters to defaults"""
     st.session_state.update({
         "selected_genres": [],
+        "selected_moods": [],
         "year_range": DEFAULT_YEAR_RANGE,
         "exact_year": None,
         "rating_range": DEFAULT_RATING_RANGE,
@@ -157,22 +143,20 @@ def get_active_filters() -> Dict:
     """Returns current filters in API-ready format"""
     filters = {
         "genres": st.session_state.selected_genres,
+        "moods": st.session_state.selected_moods,
         "ready": _should_trigger_search()
     }
     
-    # Year filter
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
         filters["year"] = int(st.session_state.exact_year)
     else:
         filters["year_range"] = st.session_state.year_range
     
-    # Rating filter
     if st.session_state.rating_filter_mode == "exact" and st.session_state.exact_rating:
         filters["rating"] = float(st.session_state.exact_rating)
     else:
         filters["rating_range"] = st.session_state.rating_range
     
-    # Popularity filter
     if st.session_state.popularity_filter_mode == "exact" and st.session_state.exact_popularity:
         filters["popularity"] = int(st.session_state.exact_popularity)
     else:
@@ -180,13 +164,19 @@ def get_active_filters() -> Dict:
     
     return filters
 
+def _should_trigger_search() -> bool:
+    """Determine if we should trigger a new search"""
+    if "last_filter_change" not in st.session_state:
+        return False
+    time_since_change = datetime.now().timestamp() - st.session_state.last_filter_change
+    return time_since_change >= DEBOUNCE_TIME
+
 def render_sidebar_filters():
-    """Main sidebar rendering function with all filter components"""
+    """Main sidebar rendering function"""
     _init_session_state()
     _validate_current_state()
     
     with st.sidebar:
-        # ---- 1. SIDEBAR HEADER ----
         st.markdown(f"""
         <style>
             .sidebar-header {{
@@ -196,10 +186,6 @@ def render_sidebar_filters():
             }}
             .filter-expander {{
                 margin-bottom: 1.5rem;
-            }}
-            .filter-disabled {{
-                opacity: 0.6;
-                pointer-events: none;
             }}
             .range-display {{
                 background: {'#2e2e2e' if get_current_theme() == 'dark' else '#f0f2f6'};
@@ -214,18 +200,18 @@ def render_sidebar_filters():
                 justify-content: space-between;
                 margin-bottom: 0.5rem;
             }}
-            .filter-toggle button {{
-                padding: 0.25rem 0.5rem;
-                font-size: 0.8rem;
+            .mood-option {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
             }}
         </style>
         <div class="sidebar-header">🎬 Filter Movies</div>
         """, unsafe_allow_html=True)
         
-        # Track if any filter is being changed
         filter_changed = False
         
-        # ---- 2. GENRE SELECTOR ----
+        # ---- GENRE SELECTOR ----
         with st.expander("**🎭 Genres**", expanded=True):
             all_genres = load_genres()
             selected = st.multiselect(
@@ -245,19 +231,68 @@ def render_sidebar_filters():
             
             if selected:
                 st.caption(f"📌 {len(selected)} selected")
-        
-        # ---- 3. YEAR FILTER ----
+
+
+        # ---- MOOD SELECTOR ----
+        with st.expander("**😊 Moods**", expanded=True):
+            all_moods = load_moods()  # This returns a list of mood dictionaries
+            
+            # Create display options with (id, display_text)
+            mood_options = [
+                (mood["id"], f"{mood.get('icon', '🎬')} {mood['name']}") 
+                for mood in all_moods
+            ]
+            
+            # Get currently selected mood labels
+            selected_ids = st.session_state.selected_moods
+            selected_labels = [
+                label for (id, label) in mood_options 
+                if id in selected_ids
+            ]
+            
+            # Render the multiselect with descriptions as tooltips
+            selected_labels = st.multiselect(
+                "Select moods",
+                options=[label for (id, label) in mood_options],
+                default=selected_labels,
+                key="mood_selector",
+                label_visibility="collapsed",
+                help="Select one or more moods to filter by",
+                on_change=lambda: st.session_state.update({
+                    "last_filter_change": datetime.now().timestamp()
+                })
+            )
+            
+            # Show descriptions for selected moods
+            if selected_labels:
+                st.caption("Selected moods:")
+                for mood in all_moods:
+                    if f"{mood.get('icon', '🎬')} {mood['name']}" in selected_labels:
+                        st.caption(f"• {mood['description']}")
+            
+            # Map selected labels back to mood IDs
+            new_selected_ids = [
+                id for (id, label) in mood_options 
+                if label in selected_labels
+            ]
+            
+            if new_selected_ids != st.session_state.selected_moods:
+                st.session_state.selected_moods = new_selected_ids
+                st.session_state.last_filter_change = datetime.now().timestamp()
+
+        # ---- YEAR FILTER ----
         with st.expander("**📅 Release Year**", expanded=True):
-            # Toggle between range and exact
             col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("Range", key="year_range_btn", 
+                if st.button("Range", 
+                           key="year_range_btn", 
                            disabled=st.session_state.year_filter_mode == "range"):
                     st.session_state.year_filter_mode = "range"
                     filter_changed = True
                     st.session_state.last_filter_change = datetime.now().timestamp()
             with col2:
-                if st.button("Exact Year", key="year_exact_btn",
+                if st.button("Exact Year",
+                           key="year_exact_btn",
                            disabled=st.session_state.year_filter_mode == "exact"):
                     st.session_state.year_filter_mode = "exact"
                     filter_changed = True
@@ -301,7 +336,6 @@ def render_sidebar_filters():
                     filter_changed = True
                     st.session_state.year_range = year_range
                 
-                # Visual indicator
                 if year_range[0] == year_range[1]:
                     st.markdown(
                         f"<div class='range-display'><b>📅 {year_range[0]}</b></div>",
@@ -312,19 +346,20 @@ def render_sidebar_filters():
                         f"<div class='range-display'><b>📅 {year_range[0]} - {year_range[1]}</b></div>",
                         unsafe_allow_html=True
                     )
-        
-        # ---- 4. RATING FILTER ----
+
+        # ---- RATING FILTER ----
         with st.expander("**⭐ Rating**", expanded=True):
-            # Toggle between range and exact
             col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("Range", key="rating_range_btn", 
+                if st.button("Range", 
+                           key="rating_range_btn", 
                            disabled=st.session_state.rating_filter_mode == "range"):
                     st.session_state.rating_filter_mode = "range"
                     filter_changed = True
                     st.session_state.last_filter_change = datetime.now().timestamp()
             with col2:
-                if st.button("Exact Rating", key="rating_exact_btn",
+                if st.button("Exact Rating",
+                           key="rating_exact_btn",
                            disabled=st.session_state.rating_filter_mode == "exact"):
                     st.session_state.rating_filter_mode = "exact"
                     filter_changed = True
@@ -370,7 +405,6 @@ def render_sidebar_filters():
                     filter_changed = True
                     st.session_state.rating_range = rating_range
                 
-                # Visual indicator
                 if rating_range[0] == rating_range[1]:
                     st.markdown(
                         f"<div class='range-display'><b>🌟 Exactly {rating_range[0]:.1f}</b></div>",
@@ -381,19 +415,20 @@ def render_sidebar_filters():
                         f"<div class='range-display'><b>🌟 {rating_range[0]:.1f} - {rating_range[1]:.1f}</b></div>",
                         unsafe_allow_html=True
                     )
-        
-        # ---- 5. POPULARITY FILTER ----
+
+        # ---- POPULARITY FILTER ----
         with st.expander("**📈 Popularity**", expanded=True):
-            # Toggle between range and exact
             col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("Range", key="popularity_range_btn", 
+                if st.button("Range", 
+                           key="popularity_range_btn", 
                            disabled=st.session_state.popularity_filter_mode == "range"):
                     st.session_state.popularity_filter_mode = "range"
                     filter_changed = True
                     st.session_state.last_filter_change = datetime.now().timestamp()
             with col2:
-                if st.button("Exact Value", key="popularity_exact_btn",
+                if st.button("Exact Value",
+                           key="popularity_exact_btn",
                            disabled=st.session_state.popularity_filter_mode == "exact"):
                     st.session_state.popularity_filter_mode = "exact"
                     filter_changed = True
@@ -436,7 +471,6 @@ def render_sidebar_filters():
                     filter_changed = True
                     st.session_state.popularity_range = popularity_range
                 
-                # Visual indicator
                 if popularity_range[0] == popularity_range[1]:
                     st.markdown(
                         f"<div class='range-display'><b>📊 Exactly {popularity_range[0]}</b></div>",
@@ -447,17 +481,15 @@ def render_sidebar_filters():
                         f"<div class='range-display'><b>📊 {popularity_range[0]} - {popularity_range[1]}</b></div>",
                         unsafe_allow_html=True
                     )
-        
-        # ---- 6. FEEDBACK & CONTROLS ----
+
+        # ---- FEEDBACK & CONTROLS ----
         st.divider()
         
-        # Show loading state when filters are changing
         if filter_changed and not _should_trigger_search():
             with st.spinner("Applying filters..."):
-                st.write("")  # Empty element to maintain spinner
+                st.write("")
             _sync_state_to_url()
         
-        # Filter counter and reset button
         col1, col2 = st.columns([3, 1])
         with col1:
             if st.button(
@@ -470,6 +502,7 @@ def render_sidebar_filters():
         with col2:
             active_filters = sum([
                 len(st.session_state.selected_genres) > 0,
+                len(st.session_state.selected_moods) > 0,
                 st.session_state.year_filter_mode == "exact" or st.session_state.year_range != DEFAULT_YEAR_RANGE,
                 st.session_state.rating_filter_mode == "exact" or st.session_state.rating_range != DEFAULT_RATING_RANGE,
                 st.session_state.popularity_filter_mode == "exact" or st.session_state.popularity_range != DEFAULT_POPULARITY_RANGE
@@ -486,10 +519,3 @@ def render_sidebar_filters():
                 {active_filters} active
             </div>
             """, unsafe_allow_html=True)
-
-# Optional: For direct testing during development
-if __name__ == "__main__":
-    st.title("🔧 Sidebar Filters Debug")
-    render_sidebar_filters()
-    st.write("Current filters:", get_active_filters())
-    st.write("Should trigger search:", _should_trigger_search())

@@ -1,0 +1,423 @@
+{
+  "version": "1.1",
+  "last_updated": "2025-07-02T14:20:25.928865",
+  "genre_definitions": {
+    "28": "Action",
+    "12": "Adventure",
+    "16": "Animation",
+    "35": "Comedy",
+    "80": "Crime",
+    "99": "Documentary",
+    "18": "Drama",
+    "10751": "Family",
+    "14": "Fantasy",
+    "36": "History",
+    "27": "Horror",
+    "10402": "Music",
+    "9648": "Mystery",
+    "10749": "Romance",
+    "878": "Science Fiction",
+    "10770": "TV Movie",
+    "53": "Thriller",
+    "10752": "War",
+    "37": "Western"
+  },
+  "movie_genres": {
+    "846422": {
+      "genre_ids": [],
+      "title": "The Old Guard 2"
+    },
+    "749170": {
+      "genre_ids": [],
+      "title": "Heads of State"
+    },
+    "986056": {
+      "genre_ids": [],
+      "title": "Thunderbolts*"
+    },
+    "541671": {
+      "genre_ids": [],
+      "title": "Ballerina"
+    },
+    "911430": {
+      "genre_ids": [],
+      "title": "F1"
+    },
+    "1234821": {
+      "genre_ids": [],
+      "title": "Jurassic World Rebirth"
+    },
+    "552524": {
+      "genre_ids": [],
+      "title": "Lilo & Stitch"
+    },
+    "1151031": {
+      "genre_ids": [],
+      "title": "Bring Her Back"
+    },
+    "547016": {
+      "genre_ids": [],
+      "title": "The Old Guard"
+    },
+    "1119878": {
+      "genre_ids": [],
+      "title": "Ice Road: Vengeance"
+    },
+    "1071585": {
+      "genre_ids": [],
+      "title": "M3GAN 2.0"
+    },
+    "1061474": {
+      "genre_ids": [],
+      "title": "Superman"
+    },
+    "1233413": {
+      "genre_ids": [],
+      "title": "Sinners"
+    },
+    "803796": {
+      "genre_ids": [],
+      "title": "KPop Demon Hunters"
+    },
+    "574475": {
+      "genre_ids": [],
+      "title": "Final Destination Bloodlines"
+    },
+    "617126": {
+      "genre_ids": [],
+      "title": "The Fantastic Four: First Steps"
+    },
+    "1100988": {
+      "genre_ids": [],
+      "title": "28 Years Later"
+    },
+    "1126915": {
+      "genre_ids": [],
+      "title": "Tornado"
+    },
+    "1087891": {
+      "genre_ids": [],
+      "title": "The Amateur"
+    },
+    "1087192": {
+      "genre_ids": [],
+      "title": "How to Train Your Dragon"
+    },
+    "1137350": {
+      "genre_ids": [],
+      "title": "The Phoenician Scheme"
+    },
+    "1181540": {
+      "genre_ids": [],
+      "title": "Guns Up"
+    },
+    "7451": {
+      "genre_ids": [],
+      "title": "xXx"
+    },
+    "1022787": {
+      "genre_ids": [],
+      "title": "Elio"
+    },
+    "1278950": {
+      "genre_ids": [],
+      "title": "The Ritual"
+    },
+    "135397": {
+      "genre_ids": [],
+      "title": "Jurassic World"
+    },
+    "870028": {
+      "genre_ids": [],
+      "title": "The Accountant²"
+    },
+    "950387": {
+      "genre_ids": [],
+      "title": "A Minecraft Movie"
+    },
+    "1241436": {
+      "genre_ids": [],
+      "title": "Warfare"
+    },
+    "170": {
+      "genre_ids": [],
+      "title": "28 Days Later"
+    },
+    "329": {
+      "genre_ids": [],
+      "title": "Jurassic Park"
+    },
+    "507086": {
+      "genre_ids": [],
+      "title": "Jurassic World Dominion"
+    },
+    "1232546": {
+      "genre_ids": [],
+      "title": "Until Dawn"
+    },
+    "351286": {
+      "genre_ids": [],
+      "title": "Jurassic World: Fallen Kingdom"
+    },
+    "331": {
+      "genre_ids": [],
+      "title": "Jurassic Park III"
+    },
+    "936108": {
+      "genre_ids": [],
+      "title": "Smurfs"
+    },
+    "822119": {
+      "genre_ids": [],
+      "title": "Captain America: Brave New World"
+    },
+    "447273": {
+      "genre_ids": [],
+      "title": "Snow White"
+    },
+    "575265": {
+      "genre_ids": [],
+      "title": "Mission: Impossible - The Final Reckoning"
+    },
+    "1239193": {
+      "genre_ids": [],
+      "title": "Deep Cover"
+    },
+    "1227128": {
+      "genre_ids": [],
+      "title": "Raid 2"
+    },
+    "330": {
+      "genre_ids": [],
+      "title": "The Lost World: Jurassic Park"
+    },
+    "1136867": {
+      "genre_ids": [],
+      "title": "Materialists"
+    },
+    "1484262": {
+      "genre_ids": [],
+      "title": "Trainwreck: The Cult of American Apparel"
+    },
+    "757725": {
+      "genre_ids": [],
+      "title": "Shadow Force"
+    },
+    "1195506": {
+      "genre_ids": [],
+      "title": "Novocaine"
+    },
+    "1484253": {
+      "genre_ids": [],
+      "title": "Trainwreck: Poop Cruise"
+    },
+    "157336": {
+      "genre_ids": [],
+      "title": "Interstellar"
+    },
+    "1562": {
+      "genre_ids": [],
+      "title": "28 Weeks Later"
+    },
+    "536554": {
+      "genre_ids": [],
+      "title": "M3GAN"
+    },
+    "1380682": {
+      "genre_ids": [],
+      "title": "The Last Rodeo"
+    },
+    "1376434": {
+      "genre_ids": [],
+      "title": "Predator: Killer of Killers"
+    },
+    "1127110": {
+      "genre_ids": [],
+      "title": "Diablo"
+    },
+    "798645": {
+      "genre_ids": [],
+      "title": "The Running Man"
+    },
+    "578": {
+      "genre_ids": [],
+      "title": "Jaws"
+    },
+    "245891": {
+      "genre_ids": [],
+      "title": "John Wick"
+    },
+    "496243": {
+      "genre_ids": [],
+      "title": "Parasite"
+    },
+    "1491570": {
+      "genre_ids": [],
+      "title": "Shark Whisperer"
+    },
+    "1296504": {
+      "genre_ids": [],
+      "title": "Stand Your Ground"
+    },
+    "10191": {
+      "genre_ids": [],
+      "title": "How to Train Your Dragon"
+    },
+    "1233575": {
+      "genre_ids": [],
+      "title": "Black Bag"
+    },
+    "402431": {
+      "genre_ids": [],
+      "title": "Wicked"
+    },
+    "11": {
+      "genre_ids": [],
+      "title": "Star Wars"
+    },
+    "575264": {
+      "genre_ids": [],
+      "title": "Mission: Impossible - Dead Reckoning Part One"
+    },
+    "1212855": {
+      "genre_ids": [],
+      "title": "Fight or Flight"
+    },
+    "1726": {
+      "genre_ids": [],
+      "title": "Iron Man"
+    },
+    "1145221": {
+      "genre_ids": [],
+      "title": "It Feeds"
+    },
+    "713364": {
+      "genre_ids": [],
+      "title": "Clown in a Cornfield"
+    },
+    "687163": {
+      "genre_ids": [],
+      "title": "Project Hail Mary"
+    },
+    "1185528": {
+      "genre_ids": [],
+      "title": "Legends of the Condor Heroes: The Gallants"
+    },
+    "1426776": {
+      "genre_ids": [],
+      "title": "STRAW"
+    },
+    "646207": {
+      "genre_ids": [],
+      "title": "The Ice Road"
+    },
+    "533535": {
+      "genre_ids": [],
+      "title": "Deadpool & Wolverine"
+    },
+    "1011477": {
+      "genre_ids": [],
+      "title": "Karate Kid: Legends"
+    },
+    "438631": {
+      "genre_ids": [],
+      "title": "Dune"
+    },
+    "324544": {
+      "genre_ids": [],
+      "title": "In the Lost Lands"
+    },
+    "1249213": {
+      "genre_ids": [],
+      "title": "Drop"
+    },
+    "27205": {
+      "genre_ids": [],
+      "title": "Inception"
+    },
+    "1083968": {
+      "genre_ids": [],
+      "title": "Locked"
+    },
+    "299534": {
+      "genre_ids": [],
+      "title": "Avengers: Endgame"
+    },
+    "98": {
+      "genre_ids": [],
+      "title": "Gladiator"
+    },
+    "348": {
+      "genre_ids": [],
+      "title": "Alien"
+    },
+    "603692": {
+      "genre_ids": [],
+      "title": "John Wick: Chapter 4"
+    },
+    "939243": {
+      "genre_ids": [],
+      "title": "Sonic the Hedgehog 3"
+    },
+    "696506": {
+      "genre_ids": [],
+      "title": "Mickey 17"
+    },
+    "1287536": {
+      "genre_ids": [],
+      "title": "Dora and the Search for Sol Dorado"
+    },
+    "302946": {
+      "genre_ids": [],
+      "title": "The Accountant"
+    },
+    "1137179": {
+      "genre_ids": [],
+      "title": "Yadang: The Snitch"
+    },
+    "335797": {
+      "genre_ids": [],
+      "title": "Sing"
+    },
+    "1327872": {
+      "genre_ids": [],
+      "title": "Frozen: The Hit Broadway Musical"
+    },
+    "872585": {
+      "genre_ids": [],
+      "title": "Oppenheimer"
+    },
+    "1371151": {
+      "genre_ids": [],
+      "title": "Off the Grid"
+    },
+    "671": {
+      "genre_ids": [],
+      "title": "Harry Potter and the Philosopher's Stone"
+    },
+    "550": {
+      "genre_ids": [],
+      "title": "Fight Club"
+    },
+    "1097311": {
+      "genre_ids": [],
+      "title": "Echo Valley"
+    },
+    "458156": {
+      "genre_ids": [],
+      "title": "John Wick: Chapter 3 - Parabellum"
+    },
+    "974576": {
+      "genre_ids": [],
+      "title": "Conclave"
+    },
+    "324552": {
+      "genre_ids": [],
+      "title": "John Wick: Chapter 2"
+    }
+  },
+  "stats": {
+    "total_genres": 19,
+    "total_movies": 98
+  }
+}

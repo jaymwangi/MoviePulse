@@ -1,0 +1,92 @@
+{
+  "Uplifting": {
+    "genres": [
+      35,
+      10751,
+      10402
+    ],
+    "weight": 1.2,
+    "description": "Feel-good, motivating, inspiring films to boost your mood"
+  },
+  "Melancholic": {
+    "genres": [
+      18,
+      36,
+      10749
+    ],
+    "weight": 1.0,
+    "description": "Bittersweet, reflective, sometimes tragic stories that evoke deep emotion"
+  },
+  "Exciting": {
+    "genres": [
+      28,
+      12,
+      53
+    ],
+    "weight": 1.3,
+    "description": "Fast-paced, action-packed, adrenaline-fueled experiences"
+  },
+  "Romantic": {
+    "genres": [
+      10749,
+      18,
+      35
+    ],
+    "weight": 1.1,
+    "description": "Heartwarming love stories, romance and relationships"
+  },
+  "Chill": {
+    "genres": [
+      10751,
+      35,
+      10402
+    ],
+    "weight": 0.9,
+    "description": "Easygoing, relaxed, cozy vibes, perfect for downtime"
+  },
+  "Suspenseful": {
+    "genres": [
+      53,
+      9648,
+      80
+    ],
+    "weight": 1.2,
+    "description": "Nail-biting tension, twists, thrillers, and mystery"
+  },
+  "Dark": {
+    "genres": [
+      80,
+      27,
+      18
+    ],
+    "weight": 1.0,
+    "description": "Gritty, serious, sometimes disturbing themes"
+  },
+  "Empowering": {
+    "genres": [
+      18,
+      28,
+      10752
+    ],
+    "weight": 1.2,
+    "description": "Strong characters overcoming odds, leaving you inspired"
+  },
+  "Whimsical": {
+    "genres": [
+      14,
+      16,
+      10751
+    ],
+    "weight": 1.1,
+    "description": "Playful, imaginative, lighthearted, and fantastical"
+  },
+  "Thought-Provoking": {
+    "genres": [
+      18,
+      878,
+      9648
+    ],
+    "weight": 1.0,
+    "description": "Movies that challenge your mind or world view"
+  }
+}

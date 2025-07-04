@@ -1,0 +1,12 @@
+[
+  { "id": 1, "name": "Uplifting", "description": "Feel-good, motivating, inspiring films to boost your mood" },
+  { "id": 2, "name": "Melancholic", "description": "Bittersweet, reflective, sometimes tragic stories that evoke deep emotion" },
+  { "id": 3, "name": "Exciting", "description": "Fast-paced, action-packed, adrenaline-fueled experiences" },
+  { "id": 4, "name": "Romantic", "description": "Heartwarming love stories, romance and relationships" },
+  { "id": 5, "name": "Chill", "description": "Easygoing, relaxed, cozy vibes, perfect for downtime" },
+  { "id": 6, "name": "Suspenseful", "description": "Nail-biting tension, twists, thrillers, and mystery" },
+  { "id": 7, "name": "Dark", "description": "Gritty, serious, sometimes disturbing themes" },
+  { "id": 8, "name": "Empowering", "description": "Strong characters overcoming odds, leaving you inspired" },
+  { "id": 9, "name": "Whimsical", "description": "Playful, imaginative, lighthearted, and fantastical" },
+  { "id": 10, "name": "Thought-Provoking", "description": "Movies that challenge your mind or world view" }
+]

@@ -1,14 +1,33 @@
 """
 Core Data Models for MoviePulse
------------------------------
+-------------------------------
 Defines fundamental data structures used across the application.
 """
 
 from dataclasses import dataclass, field
 from typing import Optional, List
 from datetime import date
-from enum import Enum  # <-- Add this import
+from enum import Enum
+from pathlib import Path
 
+# Recommendation system constants
+RECOMMENDER_DATA_DIR = Path(__file__).parent.parent / "static_data"
+RECOMMENDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+GENRES_MAP_FILE = RECOMMENDER_DATA_DIR / "genres_map.json"
+MOODS_MAP_FILE = RECOMMENDER_DATA_DIR / "moods_map.json"
+EMBEDDINGS_FILE = RECOMMENDER_DATA_DIR / "embeddings.pkl"
+ACTOR_SIMILARITY_FILE = RECOMMENDER_DATA_DIR / "actor_similarity.json"
+GENRE_MAPPINGS_FILE = RECOMMENDER_DATA_DIR / "genre_mappings.json"
+MOOD_GENRE_MAPPINGS = RECOMMENDER_DATA_DIR / "mood_genre_mappings.json"
+USER_PREFERENCES_FILE = RECOMMENDER_DATA_DIR / "user_preferences.json"
+GENRES_FILE = RECOMMENDER_DATA_DIR / "genres.json"
+MOODS_FILE = RECOMMENDER_DATA_DIR / "moods.json"
+
+
+# TMDB image URLs
+TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
+TMDB_POSTER_PLACEHOLDER = "/placeholder_poster.jpg"
 
 @dataclass
 class Genre:
@@ -17,7 +36,6 @@ class Genre:
     tmdb_id: Optional[int] = None  # Additional API reference
 
     def __post_init__(self):
-        """Auto-set tmdb_id if not provided."""
         if self.tmdb_id is None:
             self.tmdb_id = self.id
 
@@ -27,7 +45,7 @@ class Person:
     name: str
     role: str  # "actor", "director", etc.
     profile_path: Optional[str] = None
-    known_for_department: Optional[str] = None  # Additional metadata
+    known_for_department: Optional[str] = None
 
 @dataclass
 class Movie:
@@ -36,13 +54,13 @@ class Movie:
     overview: str
     release_date: str  # Format: "YYYY-MM-DD"
     poster_path: Optional[str] = None
-    backdrop_path: Optional[str] = None  # For detail pages
-    vote_average: Optional[float] = None  # For sorting/filtering
+    backdrop_path: Optional[str] = None
+    vote_average: Optional[float] = None
     genres: List[Genre] = field(default_factory=list)
     cast: List[Person] = field(default_factory=list)
     directors: List[Person] = field(default_factory=list)
     runtime: Optional[int] = None
-    similar_movies: Optional[List[int]] = field(default_factory=list)  # <-- ADD THIS
+    similar_movies: Optional[List[int]] = field(default_factory=list)
 
     @property
     def year(self) -> Optional[int]:
