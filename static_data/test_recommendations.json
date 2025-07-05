@@ -1,0 +1,87 @@
+{
+  "base_movie": {
+    "id": 278,
+    "title": "The Shawshank Redemption",
+    "genres": ["Drama", "Crime"],
+    "actors": ["Tim Robbins", "Morgan Freeman", "Bob Gunton"],
+    "mood": "Thought-Provoking"
+  },
+  "recommendations": [
+    {
+      "movie_id": 550,
+      "title": "Fight Club",
+      "similarity_score": 0.92,
+      "match_type": "hybrid",
+      "explanation": "Similar themes of hope and institutional critique / High-rated drama",
+      "genres": ["Drama"],
+      "actors": ["Brad Pitt", "Edward Norton", "Helena Bonham Carter"],
+      "mood": "Thought-Provoking",
+      "poster_path": "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
+      "backdrop_path": "/rr7E0NoGKxvbkb89eR1GwfoYjpA.jpg",
+      "release_date": "1999-10-15"
+    },
+    {
+      "movie_id": 680,
+      "title": "Pulp Fiction",
+      "similarity_score": 0.87,
+      "match_type": "genre",
+      "explanation": "Shared crime genre elements",
+      "genres": ["Crime", "Drama"],
+      "actors": ["John Travolta", "Uma Thurman", "Samuel L. Jackson"],
+      "mood": "Dark",
+      "poster_path": "/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg",
+      "backdrop_path": "/4cDFJr4HnXN5AdPw4AKrmLlMWdO.jpg",
+      "release_date": "1994-10-14"
+    },
+    {
+      "movie_id": 13,
+      "title": "Forrest Gump",
+      "similarity_score": 0.85,
+      "match_type": "actor",
+      "explanation": "Features Morgan Freeman in supporting role",
+      "genres": ["Drama", "Romance"],
+      "actors": ["Tom Hanks", "Robin Wright", "Gary Sinise"],
+      "mood": "Uplifting",
+      "poster_path": "/saHP97rTPS5eLmrLQEcANmKrsFl.jpg",
+      "backdrop_path": "/wMHsj3v9WQps8sVJ9PifBrMdqOj.jpg",
+      "release_date": "1994-07-06"
+    },
+    {
+      "movie_id": 155,
+      "title": "The Dark Knight",
+      "similarity_score": 0.78,
+      "match_type": "mood",
+      "explanation": "Matches your Thought-Provoking mood preference",
+      "genres": ["Action", "Crime", "Drama"],
+      "actors": ["Christian Bale", "Heath Ledger", "Aaron Eckhart"],
+      "mood": "Thought-Provoking",
+      "poster_path": "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+      "backdrop_path": "/hqkIcbrOHL86UncnHIsHVcVmzue.jpg",
+      "release_date": "2008-07-18"
+    },
+    {
+      "movie_id": 238,
+      "title": "The Godfather",
+      "similarity_score": 0.75,
+      "match_type": "fallback",
+      "explanation": "Classic highly-rated drama as fallback",
+      "genres": ["Crime", "Drama"],
+      "actors": ["Marlon Brando", "Al Pacino", "James Caan"],
+      "mood": "Dark",
+      "poster_path": "/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
+      "backdrop_path": "/6xKCYgH16UuwEGAyroLU6p8HLIn.jpg",
+      "release_date": "1972-03-24"
+    }
+  ],
+  "metadata": {
+    "strategy_weights": {
+      "vector": 0.5,
+      "genre": 0.3,
+      "mood": 0.1,
+      "actor": 0.1
+    },
+    "fallback_triggered": false,
+    "user_preferences_applied": true,
+    "generated_at": "2023-11-15T14:30:00Z"
+  }
+}

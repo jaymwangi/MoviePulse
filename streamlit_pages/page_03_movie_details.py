@@ -1,35 +1,60 @@
 import logging
 import time
-import os
+from logging.handlers import RotatingFileHandler
 import sys
-import requests
+import os
 import streamlit as st
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from service_clients.tmdb_client import tmdb_client
-from ui_components import CastList, SmartTagDisplay
+from ui_components import CastList, RecommendationCard
 from session_utils.state_tracker import (
     get_watchlist,
     update_watchlist,
     get_user_prefs
 )
+from core_config.constants import (
+    TMDB_IMAGE_BASE_URL,
+    GENRES_FILE,
+    MOODS_FILE
+)
 from streamlit.components.v1 import html
 from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import hybrid_recommender
 
+# ----------------------- CSS LOADING -----------------------
+@st.cache_data
+def load_css():
+    """Cache the CSS file to avoid repeated disk I/O"""
+    try:
+        with open("media_assets/styles/main.css") as f:
+            return f.read()
+    except Exception as e:
+        logger.error(f"Failed to load CSS: {str(e)}", exc_info=True)
+        return ""
+
 # ----------------------- LOGGING CONFIG -----------------------
-current_dir = os.path.dirname(os.path.abspath(__file__))
-log_dir = os.path.join(current_dir, "logs")
+# Set up rotating file handler
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+log_dir = os.path.join(project_root, "logs")
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, "movie_details.log")
+
+rotating_handler = RotatingFileHandler(
+    log_file,
+    maxBytes=5 * 1024 * 1024,   # 5 MB per file
+    backupCount=3,              # keep last 3 rotated files
+    encoding="utf-8"
+)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(log_file, encoding="utf-8"),
+        rotating_handler,
         logging.StreamHandler(sys.stdout)
     ]
 )
+
 logger = logging.getLogger(__name__)
 
 def log_page_view(movie_id: int, success: bool, duration: float):
@@ -51,7 +76,6 @@ def log_user_action(action: str, metadata: Dict = None):
         "metadata": metadata or {}
     }
     logger.info(f"USER_ACTION: {log_entry}")
-
 # ----------------------- CACHED FUNCTIONS -----------------------
 @st.cache_data(ttl=86400, show_spinner="Loading movie details...")
 def get_cached_movie_details(movie_id: int):
@@ -109,11 +133,12 @@ def render_hero_section(details):
             st.image(
                 f"https://image.tmdb.org/t/p/w1280{details.backdrop_path}",
                 use_column_width=True,
-                caption=f"{details.title} ({details.release_date[:4]})" if details.release_date else details.title
+                caption=f"{details.title} ({details.release_date[:4]})" if details.release_date else details.title,
+                alt=f"Backdrop image for {details.title}"
             )
     except Exception as e:
         logger.warning(f"Failed to load backdrop: {str(e)}", exc_info=True)
-        st.image("media_assets/backdrop_error.jpg")
+        st.image("media_assets/backdrop_error.jpg", alt="Error loading backdrop image")
 
 def render_poster(details):
     try:
@@ -121,13 +146,14 @@ def render_poster(details):
             with st.spinner("Loading poster..."):
                 st.image(
                     f"https://image.tmdb.org/t/p/w500{details.poster_path}",
-                    use_column_width=True
+                    use_column_width=True,
+                    alt=f"Poster for {details.title}"
                 )
         else:
-            st.image("media_assets/poster_placeholder.png")
+            st.image("media_assets/poster_placeholder.png", alt="Default poster placeholder")
     except Exception as e:
         logger.warning(f"Failed to load poster: {str(e)}", exc_info=True)
-        st.image("media_assets/poster_error.png")
+        st.image("media_assets/poster_error.png", alt="Error loading poster")
 
 def render_title_section(details, movie_id):
     release_year = details.release_date[:4] if details.release_date else "N/A"
@@ -211,27 +237,88 @@ def render_production_details(details):
     if hasattr(details, "spoken_languages"):
         st.markdown(f"**Languages:** {', '.join(l.name for l in details.spoken_languages[:3])}")
 
-def render_recommendations(movie_id):
-    st.subheader("You Might Also Enjoy")
-    recommendations = get_cached_recommendations(movie_id)
+def render_recommendations(movie_id: int):
+    """Enhanced recommendation display using hybrid recommender output"""
+    st.subheader("🍿 You May Also Like", divider="rainbow")
     
-    if not recommendations:
-        st.warning("No recommendations found for this movie")
-        return
-        
-    cols = st.columns(4)
-    for idx, rec in enumerate(recommendations):
-        with cols[idx]:
-            st.image(rec.poster_url or "media_assets/poster_placeholder.png", 
-                   use_column_width=True)
-            st.progress(float(rec.similarity_score))
-            st.caption(f"{rec.match_type} match")
-            st.markdown(f"**{rec.title}**")
-            with st.expander("Why this recommendation?"):
-                st.write(rec.explanation or "AI-powered recommendation based on similar content")
+    with st.spinner("Analyzing cinematic patterns to find perfect matches..."):
+        try:
+            recommendations = get_cached_recommendations(movie_id)
+            
+            if not recommendations:
+                st.info("No recommendations found. Try exploring similar genres.")
+                return
+            
+            # Dynamic column layout (2-4 columns based on screen width)
+            screen_width = st.session_state.get('screen_width', 1024)
+            col_count = 4 if screen_width > 1200 else 3 if screen_width > 800 else 2
+            cols = st.columns(col_count, gap="medium")
+            
+            for idx, rec in enumerate(recommendations[:col_count]):
+                with cols[idx % col_count]:
+                    # Build detailed explanation from recommendation metadata
+                    explanation_parts = []
+                    
+                    # Add match type context
+                    match_type_map = {
+                        'vector': "Similar themes and content",
+                        'genre': f"Shared genres: {', '.join(rec.genres[:3])}",
+                        'mood': "Matches your current mood",
+                        'actor': f"Features actors like {', '.join(rec.actors[:2])}",
+                        'fallback': "Popular with similar viewers"
+                    }
+                    explanation_parts.append(match_type_map.get(rec.match_type, rec.match_type))
+                    
+                    # Add similarity score if available
+                    if hasattr(rec, 'similarity_score'):
+                        explanation_parts.append(f"Match strength: {rec.similarity_score:.0%}")
+                    
+                    # Extract poster path from URL if available
+                    poster_path = (rec.poster_url.replace(TMDB_IMAGE_BASE_URL, "") 
+                                 if rec.poster_url and TMDB_IMAGE_BASE_URL in rec.poster_url 
+                                 else None)
+                    
+                    # Use the RecommendationCard component
+                    RecommendationCard(
+                        movie={
+                            'id': rec.movie_id,
+                            'title': rec.title,
+                            'poster_path': poster_path,
+                            'release_date': '',
+                            'vote_average': 0,
+                            'genres': rec.genres
+                        },
+                        explanation="\n".join(explanation_parts),
+                        show_explanation=False,
+                        card_width=300 if col_count >= 3 else 400
+                    )
+            
+            # Footer with refresh option
+            st.caption(f"Showing {len(recommendations[:col_count])} AI-curated recommendations")
+            if st.button("🔄 Refresh Recommendations", key="refresh_recs"):
+                st.cache_data.clear()
+                st.rerun()
+            
+        except Exception as e:
+            logger.error(f"Recommendation render failed: {str(e)}", exc_info=True)
+            st.error("Our cinematic matchmaker needs a quick break ☕")
+            if st.button("🔄 Try Again", key="retry_recs"):
+                st.cache_data.clear()
+                st.rerun()
 
 # ----------------------- MAIN PAGE -----------------------
 def render_movie_details():
+    # Load and inject CSS
+    st.markdown(f"<style>{load_css()}</style>", unsafe_allow_html=True)
+    
+    # Detect screen width (simplified approach)
+    if 'screen_width' not in st.session_state:
+        try:
+            # This is a placeholder - you may need a JS solution for actual width detection
+            st.session_state.screen_width = 1024  # Default desktop size
+        except:
+            st.session_state.screen_width = 768  # Fallback to mobile
+            
     view_start = time.perf_counter()
     movie_id = st.query_params.get("id", "")
     try:
@@ -275,7 +362,8 @@ def render_movie_details():
                 for idx, img in enumerate(details.images[:3]):
                     cols[idx].image(
                         f"https://image.tmdb.org/t/p/w500{img.file_path}",
-                        use_column_width=True
+                        use_column_width=True,
+                        alt=f"Gallery image {idx+1} for {details.title}"
                     )
         with tab3:
             render_production_details(details)
@@ -287,7 +375,7 @@ def render_movie_details():
         
     except ValueError as e:
         st.error(str(e))
-        st.page_link("pages/1_🏠_Home.py", label="← Back to Home")
+        st.page_link("pages/Home.py", label="← Back to Home")
         log_page_view(movie_id, False, time.perf_counter() - view_start)
     except Exception as e:
         logger.error(f"Page render failed: {str(e)}", exc_info=True)
@@ -303,4 +391,22 @@ if __name__ == "__main__":
         page_icon="🎬",
         layout="wide"
     )
-    render_movie_details()
+    
+    # Add screen width detection
+    js = """
+    <script>
+    function reportWindowSize() {
+        window.parent.postMessage({
+            type: 'screenWidth',
+            width: window.innerWidth
+        }, '*');
+    }
+    window.addEventListener('resize', reportWindowSize);
+    reportWindowSize();
+    </script>
+    """
+    st.components.v1.html(js)
+    
+
+# expose the page handler for imports
+movie_details_page = render_movie_details

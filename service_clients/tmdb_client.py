@@ -594,6 +594,13 @@ class TMDBClient:
             elapsed = time.perf_counter() - validate_start
             logger.debug(f"{PERF_LOG_PREFIX} Filter validation took {elapsed:.6f}s")
 
+    
+    def _get_poster_url(self, poster_path: Optional[str], size: str = 'w500') -> Optional[str]:
+        """Generate full poster URL from path."""
+        if not poster_path:
+            return None
+        return f"https://image.tmdb.org/t/p/{size}{poster_path}"
+
     def _build_search_params(
         self,
         query: str,
