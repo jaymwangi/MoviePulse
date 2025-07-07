@@ -8,6 +8,12 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from service_clients.tmdb_client import tmdb_client
 from ui_components import CastList, RecommendationCard
+from session_utils.watchlist_manager import (
+    load_watchlist,
+    add_to_watchlist,
+    remove_from_watchlist,
+    persist_watchlist
+)
 from session_utils.state_tracker import (
     get_watchlist,
     update_watchlist,
@@ -174,35 +180,58 @@ def render_title_section(details, movie_id):
     
     render_watchlist_button(movie_id, details)
 
-def render_watchlist_button(movie_id, details):
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        if _is_in_watchlist(movie_id):
-            if st.button("✓ In Watchlist", key=f"wl_remove_{movie_id}"):
+def render_watchlist_button(movie_id: int, movie_data: dict):
+    """Enhanced watchlist toggle with visual feedback"""
+    current_watchlist = load_watchlist().get(st.session_state.get("user_id", "anonymous"), {}).get("movies", [])
+    
+    # Check if movie exists in watchlist (using movie_id)
+    is_in_watchlist = any(m.get("movie_id") == movie_id for m in current_watchlist)
+    
+    # Create the button with dynamic styling
+    button_col, feedback_col = st.columns([1, 4])
+    
+    with button_col:
+        if is_in_watchlist:
+            if st.button(
+                "✓ In Watchlist",
+                key=f"wl_remove_{movie_id}",
+                help="Click to remove from your watchlist",
+                type="primary"
+            ):
                 try:
-                    update_watchlist(movie_id, remove=True)
-                    st.toast("Removed from watchlist")
-                    log_user_action("watchlist_remove", {"movie_id": movie_id})
+                    remove_from_watchlist(movie_id)
+                    st.toast("Removed from watchlist!")
+                    st.session_state.watchlist_updated = True
                     st.rerun()
                 except Exception as e:
-                    st.error("Update failed - try again")
-                    logger.error(f"Watchlist removal failed: {str(e)}", exc_info=True)
+                    st.error("Failed to update watchlist")
+                    logger.error(f"Watchlist removal failed: {e}")
         else:
-            if st.button("💖 Add to Watchlist", key=f"wl_add_{movie_id}"):
+            if st.button(
+                "＋ Add to Watchlist",
+                key=f"wl_add_{movie_id}",
+                help="Click to add to your watchlist"
+            ):
                 try:
-                    update_watchlist({
-                        "id": movie_id,
-                        "title": details.title,
-                        "poster_path": details.poster_path,
-                        "backdrop_path": details.backdrop_path,
-                        "added": datetime.now().isoformat()
+                    add_to_watchlist({
+                        "movie_id": movie_id,
+                        "title": movie_data.get("title"),
+                        "poster_path": movie_data.get("poster_path"),
+                        "added_at": datetime.now().isoformat()
                     })
                     st.toast("Added to watchlist!")
-                    log_user_action("watchlist_add", {"movie_id": movie_id})
+                    st.session_state.watchlist_updated = True
                     st.rerun()
                 except Exception as e:
-                    st.error("Update failed - try again")
-                    logger.error(f"Watchlist addition failed: {str(e)}", exc_info=True)
+                    st.error("Failed to update watchlist")
+                    logger.error(f"Watchlist addition failed: {e}")
+    
+    # Visual feedback
+    with feedback_col:
+        if is_in_watchlist:
+            st.caption("This movie is in your watchlist")
+        else:
+            st.caption("Not in your watchlist yet")
 
 def render_video_content(videos, movie_title):
     if not videos:
