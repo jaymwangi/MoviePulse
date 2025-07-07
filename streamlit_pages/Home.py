@@ -81,7 +81,21 @@ def configure_page():
     if 'global_search_query' not in st.session_state:
         st.session_state.global_search_query = ""
 
+# ----------------------- STARTER PACK HANDLING -----------------------
+def check_first_time_user():
+    """Check if user needs starter pack selection"""
+    from session_utils.watchlist_manager import load_watchlist
+    from session_utils.starter_packs import show_starter_pack_selector
+    
+    user_id = st.session_state.get("user_id", "anonymous")
+    watchlist = load_watchlist().get(user_id, {}).get("movies", [])
+    
+    if not watchlist and not st.session_state.starter_pack_selected:
+        show_starter_pack_selector()
+        st.stop()  # Prevent rest of app from loading until selection
+
 # ----------------------- MAIN CONTENT SECTIONS -----------------------
+
 def render_hero_section():
     """Dynamic hero section with theme-responsive logo"""
     logo_path = f"media_assets/logos/moviepulse_{get_current_theme()}.png"
@@ -129,7 +143,6 @@ def render_search_bar():
                 """,
                 unsafe_allow_html=True
             )
-
 def render_search_results():
     """API-integrated results with enhanced filter support"""
     if not st.session_state.get("global_search_query"):
@@ -137,6 +150,15 @@ def render_search_results():
     
     if not is_tmdb_available():
         show_service_unavailable()
+        return
+    
+    # Get current filters once at the start
+    filters = get_active_filters()
+    
+    # Show watchlist if active
+    if filters.get("watchlist_active"):
+        from ui_components import WatchlistView
+        WatchlistView.render_watchlist_grid()
         return
     
     # Show loading state for filter-triggered searches
@@ -147,13 +169,10 @@ def render_search_results():
     
     with st.spinner(f"🔍 Searching for '{st.session_state.global_search_query}'..."):
         try:
-            # Get current filters from sidebar
-            filters = get_active_filters()
-            
             # Search with hybrid filtering (using cached version)
             results, total_pages = cached_search(
                 query=st.session_state.global_search_query,
-                filters=filters,
+                filters=filters,  # Use the filters we already got
                 page=st.session_state.current_page
             )
             
@@ -198,7 +217,7 @@ def render_search_results():
                 st.button("🔄 Retry", 
                          key="retry_search",
                          disabled=st.session_state.filter_execution_in_progress)
-
+                
 def render_trending_section():
     """Trending movies with improved fallback handling"""
     st.subheader("🔥 Trending This Week", divider="red")
