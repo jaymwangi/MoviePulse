@@ -6,6 +6,7 @@ from typing import List, Dict, Tuple, Optional
 from urllib.parse import parse_qs
 from session_utils.state_tracker import get_current_theme
 from session_utils.session_helpers import load_genres, load_moods
+from session_utils.watchlist_manager import load_watchlist
 
 # Constants
 DEFAULT_YEAR_RANGE = (2000, datetime.now().year)
@@ -144,7 +145,8 @@ def get_active_filters() -> Dict:
     filters = {
         "genres": st.session_state.selected_genres,
         "moods": st.session_state.selected_moods,
-        "ready": _should_trigger_search()
+        "ready": _should_trigger_search(),
+        "watchlist_active": st.session_state.get("watchlist_active", False)  # Add this line
     }
     
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
@@ -481,6 +483,19 @@ def render_sidebar_filters():
                         f"<div class='range-display'><b>📊 {popularity_range[0]} - {popularity_range[1]}</b></div>",
                         unsafe_allow_html=True
                     )
+          # ---- WATCHLIST TOGGLE ----
+        st.markdown('<div class="watchlist-toggle">', unsafe_allow_html=True)
+        watchlist_toggle = st.checkbox(
+            "🌟 View My Watchlist",
+            key="show_watchlist",
+            help="Toggle to view your saved movies instead of search results"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if watchlist_toggle:
+            st.session_state.watchlist_active = True
+        else:
+            st.session_state.watchlist_active = False           
 
         # ---- FEEDBACK & CONTROLS ----
         st.divider()
