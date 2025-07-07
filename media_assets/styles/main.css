@@ -23,3 +23,50 @@
     font-size: 0.9rem;
     font-weight: 500;
 }
+/* Watchlist toggle styling */
+.stCheckbox > label > div {
+    font-weight: bold;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+}
+
+.stCheckbox > label > div:hover {
+    background: rgba(255, 215, 0, 0.1);
+}
+
+[data-testid="stCheckbox"]:checked + label > div {
+    color: #FFD700;  /* Gold color for active state */
+}
+/* Watchlist Toggle Styles */
+[data-testid="stCheckbox"]:has(+ label div:contains("🌟 View My Watchlist")) {
+    margin-bottom: 1rem;
+}
+
+[data-testid="stCheckbox"]:has(+ label div:contains("🌟 View My Watchlist")) + label > div {
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+}
+
+[data-testid="stCheckbox"]:has(+ label div:contains("🌟 View My Watchlist")):checked + label > div {
+    background: rgba(255, 215, 0, 0.1);
+    color: var(--gold-accent);
+}
+
+/* Watchlist Grid Styles */
+.watchlist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+.watchlist-movie-card {
+    transition: transform 0.2s;
+    cursor: pointer;
+}
+
+.watchlist-movie-card:hover {
+    transform: scale(1.05);
+}
