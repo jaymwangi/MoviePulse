@@ -826,6 +826,60 @@ class TMDBClient:
             elapsed = time.perf_counter() - genre_start
             logger.debug(f"{PERF_LOG_PREFIX} Genre ID lookup took {elapsed:.6f}s")
 
+@retry(
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(requests.exceptions.RequestException)
+)
+def get_popular_movies(self, limit: int = 10, page: int = 1) -> List[Movie]:
+    """Get popular movies with full instrumentation.
+    
+    Args:
+        limit: Maximum number of movies to return
+        page: Page number of results to fetch
+        
+    Returns:
+        List of Movie objects
+        
+    Raises:
+        RequestException: If API request fails after retries
+    """
+    fetch_start = time.perf_counter()
+    logger.info(f"Fetching {limit} popular movies from page {page}")
+    
+    try:
+        # API Request
+        api_start = time.perf_counter()
+        url = f"{self.base_url}/movie/popular"
+        params = {
+            "api_key": self.api_key,
+            "language": "en-US",
+            "page": page
+        }
+        response = self._make_request(url, params)
+        api_duration = time.perf_counter() - api_start
+        
+        # Data Processing
+        process_start = time.perf_counter()
+        movies = [self._parse_movie_result(m) for m in response.get("results", [])[:limit]]
+        process_duration = time.perf_counter() - process_start
+        
+        elapsed = time.perf_counter() - fetch_start
+        logger.info(
+            f"{PERF_LOG_PREFIX} Retrieved {len(movies)} popular movies in {elapsed:.2f}s | "
+            f"API: {api_duration:.3f}s | "
+            f"Processing: {process_duration:.3f}s"
+        )
+        
+        return movies
+        
+    except Exception as e:
+        elapsed = time.perf_counter() - fetch_start
+        logger.error(
+            f"{PERF_LOG_PREFIX} Failed to fetch popular movies after {elapsed:.2f}s: {str(e)}"
+        )
+        raise
+
 # Singleton pattern with full instrumentation
 try:
     logger.info("Initializing TMDBClient singleton")

@@ -262,63 +262,67 @@ class EnhancedHybridRecommender:
         self,
         target_movie_id: Optional[int] = None,
         user_mood: Optional[str] = None,
-        strategy: str = "smart",  # 'smart', 'vector', 'genre', 'mood', 'actor'
+        strategy: str = "smart",
         limit: int = 10,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        min_fallback_threshold: float = 0.4,
+        show_reasons: bool = True
     ) -> List[MovieRecommendation]:
-        """Main recommendation interface with personalization"""
-        # Load user preferences if available
-        user_prefs = self.user_prefs.get(user_id, {}) if user_id else {}
+        """
+        Enhanced hybrid recommendation engine with intelligent fallback and explanation system
+        
+        Args:
+            target_movie_id: ID of movie to get similar recommendations for
+            user_mood: Current mood for mood-based recommendations
+            strategy: Recommendation strategy type ('smart', 'vector', 'genre', 'mood', 'actor', 'hybrid')
+            limit: Maximum number of recommendations to return
+            user_id: Optional user ID for personalized recommendations
+            min_fallback_threshold: Minimum average score threshold before activating fallback
+            show_reasons: Whether to generate human-readable recommendation reasons
+            
+        Returns:
+            List of MovieRecommendation objects with explanation metadata
+        """
+        # Load and validate user preferences
+        user_prefs = self._load_user_preferences(user_id)
         
         recommendations = []
-        
-        # 1. Content-based (vector similarity)
-        if target_movie_id and strategy in ("smart", "vector"):
-            vector_recs = self.vector_service.get_recommendations(
-                target_movie_id,
-                limit=limit,
-                min_similarity=0.3
-            )
+        strategy_metrics = {
+            'vector': {'count': 0, 'total_score': 0},
+            'genre': {'count': 0, 'total_score': 0},
+            'mood': {'count': 0, 'total_score': 0},
+            'actor': {'count': 0, 'total_score': 0}
+        }
+
+        # 1. Content-based recommendations
+        if target_movie_id and strategy in ("smart", "vector", "hybrid"):
+            vector_recs = self._get_vector_recommendations(target_movie_id, limit)
             recommendations.extend(vector_recs)
-        # 2. Genre-based (from target movie or user prefs)
-        if strategy in ("smart", "genre"):
-            genre_ids = []
-            if target_movie_id:
-                movie = tmdb_client.get_movie_details(target_movie_id)
-                if movie and getattr(movie, "genres", None):
-                    genre_ids = [g.id for g in movie.genres]
-                else:
-                    logger.warning(
-                        f"Could not load genres for movie ID {target_movie_id}. Skipping genre-based fallback."
-                    )
-            elif user_prefs.get("preferred_genres"):
-                genre_ids = user_prefs["preferred_genres"]
+            self._update_strategy_metrics(strategy_metrics, vector_recs, 'vector')
 
-            if genre_ids:
-                genre_recs = self.genre_service.get_genre_recommendations(
-                    genre_ids,
-                    limit=limit // 2
-                )
-                recommendations.extend(genre_recs)
+        # 2. Genre-based recommendations
+        if strategy in ("smart", "genre", "hybrid"):
+            genre_ids = self._get_relevant_genres(target_movie_id, user_prefs)
+            genre_recs = self._get_genre_recommendations(genre_ids, limit//2)
+            recommendations.extend(genre_recs)
+            self._update_strategy_metrics(strategy_metrics, genre_recs, 'genre')
 
-        
-        # 3. Mood-based (explicit or from user prefs)
-        if strategy in ("smart", "mood"):
+        # 3. Mood-based recommendations
+        if strategy in ("smart", "mood", "hybrid"):
             effective_mood = user_mood or user_prefs.get("preferred_moods", [None])[0]
-            if effective_mood:
-                mood_recs = self.genre_service.get_mood_recommendations(effective_mood, limit//2)
-                recommendations.extend(mood_recs)
-        
-        # 4. Actor-based (from user prefs)
-        if strategy in ("smart", "actor") and user_prefs.get("preferred_actors"):
-            actor_recs = self.actor_service.get_actor_recommendations(
-                user_prefs["preferred_actors"],
-                limit=limit//3
-            )
-            recommendations.extend(actor_recs)
+            mood_recs = self._get_mood_recommendations(effective_mood, limit//2)
+            recommendations.extend(mood_recs)
+            self._update_strategy_metrics(strategy_metrics, mood_recs, 'mood')
 
-         # Add fallback recommendations if primary methods return few results
-        if len(recommendations) < limit//2:
+        # 4. Actor-based recommendations
+        if strategy in ("smart", "actor", "hybrid") and user_prefs.get("preferred_actors"):
+            actor_recs = self._get_actor_recommendations(user_prefs["preferred_actors"], limit//3)
+            recommendations.extend(actor_recs)
+            self._update_strategy_metrics(strategy_metrics, actor_recs, 'actor')
+
+        # 5. Intelligent fallback system
+        quality_score = self._calculate_quality_score(strategy_metrics)
+        if self._needs_fallback(recommendations, quality_score, min_fallback_threshold, limit):
             fallback_recs = self._get_fallback_recommendations(
                 target_movie_id,
                 user_mood,
@@ -326,11 +330,121 @@ class EnhancedHybridRecommender:
                 max(limit//2, limit - len(recommendations))
             )
             recommendations.extend(fallback_recs)
+
+        # Final processing pipeline
+        final_recs = self._process_final_recommendations(recommendations, user_prefs, limit, show_reasons)
         
-        # Process and return final recommendations
-        unique_recs = self._deduplicate_recommendations(recommendations)
-        scored_recs = self._apply_user_preferences(unique_recs, user_prefs)
-        return scored_recs[:limit]
+        logger.info(
+            f"Recommendation summary - "
+            f"Total: {len(final_recs)} | "
+            f"Strategies: {self._get_strategy_distribution(final_recs)} | "
+            f"Avg score: {self._get_average_score(final_recs):.2f}"
+        )
+        
+        return final_recs[:limit]
+
+    # New helper methods for better organization
+    def _load_user_preferences(self, user_id: Optional[str]) -> Dict:
+        """Safely load user preferences with error handling"""
+        try:
+            return self.user_prefs.get(user_id, {}) if user_id else {}
+        except Exception as e:
+            logger.error(f"Failed to load preferences: {str(e)}")
+            return {}
+
+    def _get_vector_recommendations(self, target_movie_id: int, limit: int) -> List[MovieRecommendation]:
+        """Get content-based recommendations with error handling"""
+        try:
+            return self.vector_service.get_recommendations(target_movie_id, limit=limit, min_similarity=0.3)
+        except Exception as e:
+            logger.warning(f"Vector recommendations failed: {str(e)}")
+            return []
+
+    def _get_relevant_genres(self, target_movie_id: Optional[int], user_prefs: Dict) -> List[int]:
+        """Get relevant genre IDs from movie or user preferences"""
+        if target_movie_id:
+            try:
+                movie = tmdb_client.get_movie_details(target_movie_id)
+                return [g.id for g in getattr(movie, "genres", [])]
+            except Exception as e:
+                logger.warning(f"Failed to get movie genres: {str(e)}")
+        return user_prefs.get("preferred_genres", [])
+
+    def _update_strategy_metrics(self, metrics: Dict, recommendations: List[MovieRecommendation], strategy: str):
+        """Update strategy performance tracking"""
+        if recommendations:
+            metrics[strategy]['count'] += len(recommendations)
+            metrics[strategy]['total_score'] += sum(r.similarity_score for r in recommendations)
+
+    def _calculate_quality_score(self, metrics: Dict) -> float:
+        """Calculate overall recommendation quality score"""
+        total_count = sum(v['count'] for v in metrics.values())
+        total_score = sum(v['total_score'] for v in metrics.values())
+        return total_score / total_count if total_count > 0 else 0
+
+    def _needs_fallback(self, recommendations: List[MovieRecommendation], quality_score: float, 
+                    threshold: float, limit: int) -> bool:
+        """Determine if fallback recommendations are needed"""
+        return len(recommendations) < max(3, limit//2) or quality_score < threshold
+
+    def _process_final_recommendations(self, recommendations: List[MovieRecommendation], 
+                                    user_prefs: Dict, limit: int, show_reasons: bool) -> List[MovieRecommendation]:
+        """Apply final processing pipeline to recommendations"""
+        try:
+            unique_recs = self._deduplicate_recommendations(recommendations)
+            personalized_recs = self._apply_user_preferences(unique_recs, user_prefs)
+            diverse_recs = self._ensure_diversity(personalized_recs, limit)
+            
+            if show_reasons:
+                return self._add_reason_labels(diverse_recs, user_prefs)
+            return diverse_recs
+        except Exception as e:
+            logger.error(f"Final processing failed: {str(e)}")
+            return self._get_popular_fallback(limit)
+
+    def _add_reason_labels(self, recommendations: List[MovieRecommendation], user_prefs: Dict) -> List[MovieRecommendation]:
+        """Add human-readable reason labels to recommendations"""
+        reason_templates = {
+            'vector': "Similar to movies you love",
+            'genre': "Matches your favorite {genres}",
+            'mood': "Perfect for {mood} moods",
+            'actor': "Features actors like {actors}",
+            'fallback': "Recommended based on similar tastes",
+            'popular': "Popular with viewers like you"
+        }
+        
+        for rec in recommendations:
+            template = reason_templates.get(rec.match_type, "Recommended for you")
+            
+            # Personalized template filling
+            if rec.match_type == 'genre' and user_prefs.get('preferred_genres'):
+                matched_genres = [g for g in rec.genres if g in user_prefs['preferred_genres']]
+                if matched_genres:
+                    rec.reason_label = template.format(genres=', '.join(matched_genres[:2]))
+                    continue
+                    
+            if rec.match_type == 'mood' and user_prefs.get('preferred_moods'):
+                rec.reason_label = template.format(mood=user_prefs['preferred_moods'][0])
+                continue
+                
+            if rec.match_type == 'actor' and user_prefs.get('preferred_actors'):
+                rec.reason_label = template.format(actors=user_prefs['preferred_actors'][0])
+                continue
+                
+            rec.reason_label = template
+            
+        return recommendations
+
+    def _get_strategy_distribution(self, recommendations: List[MovieRecommendation]) -> str:
+        """Get string representation of strategy distribution"""
+        counts = {}
+        for rec in recommendations:
+            counts[rec.match_type] = counts.get(rec.match_type, 0) + 1
+        return ', '.join(f"{k}:{v}" for k, v in counts.items())
+
+    def _get_average_score(self, recommendations: List[MovieRecommendation]) -> float:
+        """Calculate average recommendation score"""
+        return sum(r.similarity_score for r in recommendations) / len(recommendations) if recommendations else 0
 
     def _deduplicate_recommendations(
         self,
@@ -347,7 +461,6 @@ class EnhancedHybridRecommender:
             else:
                 merged[rec.movie_id] = rec
         return list(merged.values())
-
 
     def _apply_user_preferences(
         self,
@@ -402,9 +515,12 @@ class EnhancedHybridRecommender:
         user_prefs: Dict,
         limit: int
     ) -> List[MovieRecommendation]:
-        """Generate fallback recommendations with empty input handling"""
+        """Generate fallback recommendations with multiple strategies"""
         try:
-            # Get genres - convert to list of IDs
+            # First try genre/mood based fallback
+            fallback_recs = []
+            
+            # 1. Genre-based fallback
             genre_ids = []
             if target_movie_id:
                 movie = tmdb_client.get_movie_details(target_movie_id)
@@ -412,7 +528,7 @@ class EnhancedHybridRecommender:
             elif user_prefs.get("preferred_genres"):
                 genre_ids = user_prefs["preferred_genres"]
             
-            # Get moods - convert to list of IDs
+            # 2. Mood-based fallback
             mood_ids = []
             effective_mood = user_mood or user_prefs.get("preferred_moods", [None])[0]
             if effective_mood and hasattr(self.fallback_rules, 'moods'):
@@ -421,19 +537,37 @@ class EnhancedHybridRecommender:
                     if m.name.lower() == effective_mood.lower()
                 ]
             
-            # Get compatible movies (FallbackRules handles empty inputs)
+            # Try our sophisticated fallback rules first
             compatible_movies = self.fallback_rules.get_compatible_movies(
                 genre_ids or None,
                 mood_ids or None
             ) or []
             
-            # Format recommendations
-            return self._format_fallback_recommendations(compatible_movies[:limit])
-        
+            if compatible_movies:
+                return self._format_fallback_recommendations(compatible_movies[:limit])
+            
+            # If no compatible movies found, fall back to popular movies
+            logger.info("No compatible fallback movies found - using popular movies")
+            popular_movies = tmdb_client.get_popular_movies(limit=limit)
+            return [
+                MovieRecommendation(
+                    movie_id=m.id,
+                    title=m.title,
+                    similarity_score=0.5,  # Base score for popular movies
+                    match_type='popular',
+                    explanation="Popular movie recommendation",
+                    genres=[g.name for g in m.genres],
+                    actors=[c.name for c in m.cast[:3]],
+                    poster_url=f"{constants.TMDB_IMAGE_BASE_URL}{m.poster_path}" if m.poster_path else None,
+                    backdrop_url=f"{constants.TMDB_IMAGE_BASE_URL}{m.backdrop_path}" if m.backdrop_path else None
+                )
+                for m in popular_movies
+            ]
+            
         except Exception as e:
-            logger.warning(f"Fallback recommendation failed: {str(e)}")
+            logger.error(f"Fallback recommendation failed: {str(e)}")
             return []
-
+        
     def _format_fallback_recommendations(self, movie_ids: List[int]) -> List[MovieRecommendation]:
         """Format fallback recommendations with error handling"""
         recommendations = []

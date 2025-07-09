@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from service_clients.tmdb_client import tmdb_client
 from ui_components import CastList, RecommendationCard
+from ui_components.RecommendationCard import RecommendationDisplayConfig
 from session_utils.watchlist_manager import (
     load_watchlist,
     add_to_watchlist,
@@ -278,52 +279,31 @@ def render_recommendations(movie_id: int):
                 st.info("No recommendations found. Try exploring similar genres.")
                 return
             
-            # Dynamic column layout (2-4 columns based on screen width)
-            screen_width = st.session_state.get('screen_width', 1024)
-            col_count = 4 if screen_width > 1200 else 3 if screen_width > 800 else 2
-            cols = st.columns(col_count, gap="medium")
+            # Create columns based on recommendation count (max 4)
+            rec_count = min(len(recommendations), 4)
+            cols = st.columns(rec_count, gap="medium")
             
-            for idx, rec in enumerate(recommendations[:col_count]):
-                with cols[idx % col_count]:
-                    # Build detailed explanation from recommendation metadata
-                    explanation_parts = []
-                    
-                    # Add match type context
-                    match_type_map = {
-                        'vector': "Similar themes and content",
-                        'genre': f"Shared genres: {', '.join(rec.genres[:3])}",
-                        'mood': "Matches your current mood",
-                        'actor': f"Features actors like {', '.join(rec.actors[:2])}",
-                        'fallback': "Popular with similar viewers"
-                    }
-                    explanation_parts.append(match_type_map.get(rec.match_type, rec.match_type))
-                    
-                    # Add similarity score if available
-                    if hasattr(rec, 'similarity_score'):
-                        explanation_parts.append(f"Match strength: {rec.similarity_score:.0%}")
-                    
-                    # Extract poster path from URL if available
-                    poster_path = (rec.poster_url.replace(TMDB_IMAGE_BASE_URL, "") 
-                                 if rec.poster_url and TMDB_IMAGE_BASE_URL in rec.poster_url 
-                                 else None)
-                    
-                    # Use the RecommendationCard component
+            for idx, rec in enumerate(recommendations[:rec_count]):
+                with cols[idx]:
+                    # Use the enhanced RecommendationCard
                     RecommendationCard(
                         movie={
                             'id': rec.movie_id,
                             'title': rec.title,
-                            'poster_path': poster_path,
-                            'release_date': '',
-                            'vote_average': 0,
+                            'poster_path': rec.poster_path,
+                            'release_date': rec.release_date[:4] if rec.release_date else '',
+                            'vote_average': rec.vote_average,
                             'genres': rec.genres
                         },
-                        explanation="\n".join(explanation_parts),
-                        show_explanation=False,
-                        card_width=300 if col_count >= 3 else 400
+                        config=RecommendationDisplayConfig(
+                            show_explanation=True,
+                            show_metrics=False,
+                            compact_mode=False
+                        )
                     )
             
             # Footer with refresh option
-            st.caption(f"Showing {len(recommendations[:col_count])} AI-curated recommendations")
+            st.caption(f"Showing {rec_count} AI-curated recommendations")
             if st.button("🔄 Refresh Recommendations", key="refresh_recs"):
                 st.cache_data.clear()
                 st.rerun()

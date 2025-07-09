@@ -7,6 +7,8 @@ from urllib.parse import parse_qs
 from session_utils.state_tracker import get_current_theme
 from session_utils.session_helpers import load_genres, load_moods
 from session_utils.watchlist_manager import load_watchlist
+from session_utils.user_profile import set_critic_mode, get_critic_mode
+
 
 # Constants
 DEFAULT_YEAR_RANGE = (2000, datetime.now().year)
@@ -14,6 +16,22 @@ DEFAULT_RATING_RANGE = (7.0, 10.0)
 DEFAULT_POPULARITY_RANGE = (0, 100)
 GENRES_FILE = "static_data/genres.json"
 DEBOUNCE_TIME = 0.5  # Seconds to wait before applying filter changes
+
+CRITIC_MODES = {
+    "default": {
+        "label": "🎭 Default",
+        "description": "Balanced recommendations"
+    },
+    "arthouse_snob": {
+        "label": "🎨 Arthouse Snob",
+        "description": "Focus on indie, foreign, and critically-acclaimed films"
+    },
+    "blockbuster_fan": {
+        "label": "🍿 Blockbuster Fan", 
+        "description": "Big-budget spectacles and popular hits"
+    }
+}
+
 
 def _init_session_state():
     """Initialize session state with URL params or defaults"""
@@ -49,7 +67,9 @@ def _init_session_state():
             "filter_init_complete": True,
             "year_filter_mode": "range" if not url_params.get("exact_year") else "exact",
             "rating_filter_mode": "range" if not url_params.get("exact_rating") else "exact",
-            "popularity_filter_mode": "range" if not url_params.get("exact_popularity") else "exact"
+            "popularity_filter_mode": "range" if not url_params.get("exact_popularity") else "exact",
+            "critic_mode": url_params.get("critic_mode", "default")
+            
         })
 
 def _validate_current_state():
@@ -102,6 +122,14 @@ def _validate_current_state():
 def _sync_state_to_url():
     """Update URL parameters to reflect current filters"""
     params = {
+        # ... existing params ...
+        "critic_mode": st.session_state.critic_mode
+    }
+    st.query_params.update(**params)
+
+def _sync_state_to_url():
+    """Update URL parameters to reflect current filters"""
+    params = {
         "genres": ",".join(st.session_state.selected_genres),
         "moods": ",".join(map(str, st.session_state.selected_moods)),
         "year_min": str(st.session_state.year_range[0]),
@@ -109,6 +137,7 @@ def _sync_state_to_url():
         "rating_min": str(st.session_state.rating_range[0]),
         "rating_max": str(st.session_state.rating_range[1]),
         "popularity_min": str(st.session_state.popularity_range[0]),
+        "critic_mode": st.session_state.critic_mode,
         "popularity_max": str(st.session_state.popularity_range[1])
     }
     
@@ -140,12 +169,14 @@ def reset_filters():
     _sync_state_to_url()
     st.toast("Filters reset to defaults", icon="♻️")
 
+
 def get_active_filters() -> Dict:
     """Returns current filters in API-ready format"""
     filters = {
         "genres": st.session_state.selected_genres,
         "moods": st.session_state.selected_moods,
         "ready": _should_trigger_search(),
+        "critic_mode": st.session_state.critic_mode,
         "watchlist_active": st.session_state.get("watchlist_active", False)  # Add this line
     }
     
@@ -213,6 +244,30 @@ def render_sidebar_filters():
         
         filter_changed = False
         
+        # ---- CRITIC MODE SELECTOR ----
+        with st.expander("**🎭 Critic Personality**", expanded=True):
+            try:
+                current_mode = get_critic_mode()
+                
+                selected_mode = st.selectbox(
+                    "Select critic mode",
+                    options=list(CRITIC_MODES.keys()),
+                    format_func=lambda x: CRITIC_MODES[x]["label"],
+                    index=list(CRITIC_MODES.keys()).index(current_mode),
+                    key="critic_mode_select",
+                    label_visibility="collapsed"
+                )
+                
+                if selected_mode != current_mode:
+                    set_critic_mode(selected_mode)
+                    st.session_state.last_filter_change = datetime.now().timestamp()
+                    filter_changed = True
+                
+                st.caption(CRITIC_MODES[selected_mode]["description"])
+            except Exception as e:
+                st.warning("Couldn't load critic preferences")
+                st.session_state.critic_mode = "default"
+
         # ---- GENRE SELECTOR ----
         with st.expander("**🎭 Genres**", expanded=True):
             all_genres = load_genres()
