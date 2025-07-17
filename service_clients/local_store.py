@@ -1,6 +1,8 @@
 import json
+import pickle
+import numpy as np
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any,Tuple,List
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -73,3 +75,69 @@ def save_user_preferences(user_id: str, preferences: Dict[str, Any]):
         logger.info(f"Preferences for user {user_id} saved successfully to {prefs_path}")
     except Exception as e:
         logger.error(f"Failed to save user preferences to {prefs_path}: {e}")
+
+def load_embeddings_with_ids(path: Path = Path("static_data/embeddings.pkl")) -> Tuple[np.ndarray, List[int]]:
+    """
+    Load embeddings and movie IDs from disk, returning them as a tuple (embeddings, ids)
+    Expects the file to contain a tuple: (np.ndarray, List[int])
+    """
+    try:
+        if not path.exists():
+            logger.warning(f"Embeddings file not found at {path}")
+            return np.array([]), []
+
+        with path.open("rb") as f:
+            data = pickle.load(f)
+
+        if not isinstance(data, tuple) or len(data) != 2:
+            raise ValueError("Embeddings file must contain a tuple: (ndarray, list[int])")
+
+        embeddings, ids = data
+
+        if not isinstance(embeddings, np.ndarray) or not isinstance(ids, list):
+            raise ValueError("Invalid data types inside the embeddings tuple")
+
+        logger.info(f"Loaded {len(ids)} embeddings from {path}")
+        return embeddings, ids
+
+    except Exception as e:
+        logger.error(f"Failed to load embeddings from {path}: {e}")
+        return np.array([]), []
+    
+def load_genre_mappings(path: Path = Path("static_data/genres.json")) -> Dict[int, str]:
+    try:
+        logger.info(f"Loading genre mappings from {path}")
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+
+        genre_map = {item["id"]: item["name"] for item in raw if "id" in item and "name" in item}
+        return genre_map
+
+    except Exception as e:
+        logger.error(f"Failed to load genre mappings: {e}")
+        return {}
+
+def load_mood_genre_map(
+    path: Path = Path("static_data/mood_genre_mappings.json")
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Loads the full mood-to-genre mapping including:
+    - genres (List[int])
+    - weight (float)
+    - description (str)
+    """
+    try:
+        logger.info(f"Loading mood-genre map from {path}")
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load mood-genre map: {e}")
+        return {}
+    
+def load_actor_similarity(path: Path = Path("static_data/actor_similarity.json")) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load actor similarity data: {e}")
+        return {}

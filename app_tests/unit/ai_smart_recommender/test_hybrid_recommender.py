@@ -11,7 +11,7 @@ from contextlib import nullcontext as does_not_raise
 # Mock the local_store module before imports
 sys.modules['service_clients.local_store'] = MagicMock()
 from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import (
-    EnhancedHybridRecommender,
+    HybridRecommender,
     VectorSimilarityService,
     GenreMoodService,
     ActorSimilarityService,
@@ -217,7 +217,7 @@ def test_hybrid_fallback_mechanism(
         "ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model.tmdb_client.get_movie_details",
         side_effect=mock_get_movie_details
     ):
-        recommender = EnhancedHybridRecommender()
+        recommender = HybridRecommender()
         recs = recommender.recommend(target_movie_id=1)
         
         if expected_fallback:
@@ -268,7 +268,7 @@ def test_json_rule_loading(tmp_path) -> None:
         assert 1 in rules.moods
         assert rules.moods[1].compatible_moods == [2]
 from unittest.mock import patch, MagicMock
-from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import EnhancedHybridRecommender, MovieRecommendation
+from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import HybridRecommender, MovieRecommendation
 def test_fallback_recommendations_with_valid_rules() -> None:
     class MockGenre:
         def __init__(self, id, name):
@@ -327,7 +327,7 @@ def test_fallback_recommendations_with_valid_rules() -> None:
             get_genre_recommendations=lambda genre_ids, limit: []
         )
     ):
-        recommender = EnhancedHybridRecommender()
+        recommender = HybridRecommender()
         recs = recommender.recommend(target_movie_id=1)
         
         # Debug print to see what we actually got
@@ -350,7 +350,7 @@ def test_fallback_with_valid_rules(
     """Test fallback works with properly configured rules"""
     mock_fallback_rules.get_compatible_movies.return_value = [1, 2]
     
-    recommender = EnhancedHybridRecommender()
+    recommender = HybridRecommender()
     recommender.fallback_rules = mock_fallback_rules
     
     recs = recommender._get_fallback_recommendations(
@@ -386,7 +386,7 @@ def test_fallback_with_empty_inputs(mock_fallback_rules: MagicMock) -> None:
         'ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model.tmdb_client.get_movie_details',
         side_effect=mock_movie_details
     ):
-        recommender = EnhancedHybridRecommender()
+        recommender = HybridRecommender()
         
         recs = recommender._get_fallback_recommendations(
             target_movie_id=None,
@@ -405,7 +405,7 @@ def test_fallback_with_invalid_movie(
     mock_fallback_rules.get_compatible_movies.return_value = [999]  # Invalid fallback movie
     mock_tmdb_client.get_movie_details.side_effect = lambda movie_id: None if movie_id == 999 else MagicMock()
 
-    recommender = EnhancedHybridRecommender()
+    recommender = HybridRecommender()
     recommender.fallback_rules = mock_fallback_rules
 
     recs = recommender._get_fallback_recommendations(
@@ -473,7 +473,7 @@ def test_full_hybrid_recommendation(
          patch('ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model.GenreMoodService', return_value=mock_genre_service), \
          patch('ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model.ActorSimilarityService', return_value=mock_actor_service):
         
-        recommender = EnhancedHybridRecommender()
+        recommender = HybridRecommender()
         recs = recommender.recommend(
             target_movie_id=1,
             user_id=TEST_USER_ID,
@@ -521,7 +521,7 @@ def test_empty_recommendations(mock_tmdb_client: MagicMock) -> None:
         "ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model.ActorSimilarityService",
         return_value=mock_empty,
     ):
-        recommender = EnhancedHybridRecommender()
+        recommender = HybridRecommender()
         recs = recommender.recommend(target_movie_id=1)
 
         # Fallback will still run, so check that we get recommendations
@@ -565,7 +565,7 @@ def test_empty_fallback_rules(caplog: pytest.LogCaptureFixture) -> None:
         'ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model.tmdb_client.get_movie_details',
         return_value=None
     ):
-        recommender = EnhancedHybridRecommender()
+        recommender = HybridRecommender()
         recs = recommender.recommend(target_movie_id=1)
         
         assert len(recs) == 0
@@ -612,7 +612,7 @@ def test_user_preference_boost(mock_load_user_prefs: MagicMock) -> None:
         backdrop_url=None
     )
     
-    recommender = EnhancedHybridRecommender()
+    recommender = HybridRecommender()
 
     # Test 1: Single genre preference
     mock_load_user_prefs.return_value = {
@@ -727,7 +727,7 @@ def test_disliked_genre_penalty(mock_load_user_prefs: MagicMock) -> None:
     # directly set explanation string
     mock_rec.explanation = "original explanation disliked genre"
     
-    recommender = EnhancedHybridRecommender()
+    recommender = HybridRecommender()
     penalized_recs = recommender._apply_user_preferences(
         [mock_rec],
         mock_load_user_prefs.return_value[TEST_USER_ID]
@@ -746,7 +746,7 @@ def test_invalid_user_id_handling(mock_tmdb, mock_load_user_prefs: MagicMock):
     """Test behavior when invalid user ID is provided"""
     mock_tmdb.return_value = MagicMock(genres=[])  # safe dummy genres
 
-    recommender = EnhancedHybridRecommender()
+    recommender = HybridRecommender()
     recs = recommender.recommend(target_movie_id=1, user_id=INVALID_USER_ID)
 
     assert len(recs) > 0
@@ -834,5 +834,5 @@ def test_recommendation_performance(benchmark):
         "ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model.tmdb_client",
         mock_tmdb
     ):
-        recommender = EnhancedHybridRecommender()
+        recommender = HybridRecommender()
         benchmark(recommender.recommend, target_movie_id=1)

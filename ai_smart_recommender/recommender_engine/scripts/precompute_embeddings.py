@@ -68,11 +68,11 @@ def generate_embeddings(movies: list) -> Tuple[np.ndarray, list]:
     )
     return embeddings, ids
 
-def save_embeddings(embeddings: np.ndarray) -> None:
-    """Save raw embeddings to disk."""
-    logger.info(f"Saving embeddings to {EMBEDDINGS_PKL}")
+def save_embeddings_with_ids(embeddings: np.ndarray, ids: list) -> None:
+    """Save embeddings and corresponding IDs as a tuple to disk."""
+    logger.info(f"Saving embeddings and IDs to {EMBEDDINGS_PKL}")
     with EMBEDDINGS_PKL.open("wb") as f:
-        pickle.dump(embeddings, f, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump((embeddings, ids), f, protocol=pickle.HIGHEST_PROTOCOL)
 
 def build_and_save_index(embeddings: np.ndarray, ids: list) -> None:
     """Build and persist FAISS index."""
@@ -114,8 +114,8 @@ def main() -> None:
         # Step 2: Generate embeddings
         embeddings, ids = generate_embeddings(movies)
         
-        # Step 3: Save embeddings
-        save_embeddings(embeddings)
+        # Step 3: Save embeddings + ids
+        save_embeddings_with_ids(embeddings, ids)
         
         # Step 4: Build and save index
         build_and_save_index(embeddings, ids)
