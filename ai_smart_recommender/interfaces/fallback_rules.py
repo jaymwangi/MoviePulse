@@ -6,15 +6,19 @@ Preserves all functionality while adapting to the new pipeline architecture:
 - Mood compatibility fallback
 - Actor-based fallback
 - Popularity fallback
+- Curated sets fallback
 - Sophisticated quality threshold system
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 import logging
 import numpy as np
 from pydantic import BaseModel, field_validator
+from pathlib import Path
+import json
+import random
 
 from service_clients import tmdb_client
 from core_config import constants
@@ -36,7 +40,7 @@ class FallbackStrategy(BaseRecommender, ABC):
         pass
 
 # --------------------------
-# Preserved Data Models
+# Data Models
 # --------------------------
 class GenreCompatibilityRule(BaseModel):
     genre_id: int
@@ -57,6 +61,12 @@ class MoodCompatibilityRule(BaseModel):
     compatible_genres: List[int]
     compatible_moods: List[int]
     weight: float = 1.0
+
+@dataclass
+class CuratedSet:
+    name: str
+    movie_ids: List[int]
+    genre: str
 
 # --------------------------
 # Fallback Strategies
@@ -248,6 +258,93 @@ class PopularityFallback(FallbackStrategy):
             }
         )
 
+@dataclass
+class CuratedFallbackStrategy(FallbackStrategy):
+    data_dir: str = "static_data"
+    logger: Optional[logging.Logger] = None
+    strategy_name: str = "curated_fallback"
+    fallback_priority: int = 5  # Should run after other fallbacks
+    curated_sets: List[CuratedSet] = None
+
+    def __post_init__(self):
+        self.logger = self.logger or logging.getLogger(__name__)
+        if self.curated_sets is None:
+            self._load_curated_sets()
+
+    def _load_curated_sets(self) -> None:
+        """Load and validate the starter packs and genre mapping data."""
+        try:
+            data_path = Path(self.data_dir)
+            # Load starter packs
+            with open(data_path / "starter_packs.json") as f:
+                starter_packs: Dict[str, List[int]] = json.load(f)
+            
+            # Load genre mapping
+            with open(data_path / "pack_to_genre_map.json") as f:
+                pack_genres: Dict[str, str] = json.load(f)
+            
+            # Create curated sets
+            self.curated_sets = []
+            for pack_name, movie_ids in starter_packs.items():
+                genre = pack_genres.get(pack_name)
+                if not genre:
+                    self.logger.warning(f"No genre mapping for pack: {pack_name}")
+                    continue
+                
+                self.curated_sets.append(CuratedSet(
+                    name=pack_name,
+                    movie_ids=movie_ids,
+                    genre=genre
+                ))
+                
+        except FileNotFoundError as e:
+            self.logger.error(f"Data file not found: {e.filename}")
+            self.curated_sets = []
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Invalid JSON data: {e}")
+            self.curated_sets = []
+
+    def should_activate(self, context: dict) -> bool:
+        """Activate when all other fallbacks have failed"""
+        return context.get('fallback_required', False) and bool(self.curated_sets)
+
+    def execute(self, context: dict) -> List[Recommendation]:
+        if not self.curated_sets:
+            return []
+
+        preferred_genre = context.get('preferred_genre')
+        num_recommendations = context.get('limit', 6)
+
+        # Filter by genre if specified
+        candidate_sets = [
+            s for s in self.curated_sets
+            if preferred_genre is None or s.genre.lower() == preferred_genre.lower()
+        ] or self.curated_sets  # Fallback to all sets if no genre match
+
+        selected_set = random.choice(candidate_sets)
+        movie_ids = (
+            selected_set.movie_ids 
+            if len(selected_set.movie_ids) <= num_recommendations
+            else random.sample(selected_set.movie_ids, num_recommendations)
+        )
+
+        return [
+            self._create_recommendation(movie_id, selected_set.name)
+            for movie_id in movie_ids
+        ]
+
+    def _create_recommendation(self, movie_id: int, set_name: str) -> Recommendation:
+        return Recommendation(
+            movie_id=movie_id,
+            title=f"Curated selection from {set_name}",
+            score=0.85,  # Slightly higher than other fallbacks
+            strategy=self.strategy_name,
+            metadata={
+                "reason": "Handpicked collection",
+                "set_name": set_name
+            }
+        )
+
 # --------------------------
 # Rules Loader
 # --------------------------
@@ -257,9 +354,19 @@ class FallbackRulesLoader:
         self.mood_rules: Dict[int, MoodCompatibilityRule] = {}
         self.similarity_matrix: Optional[np.ndarray] = None
         self.actor_data: Dict = {}
+        self.curated_sets: Optional[List[CuratedSet]] = None
 
     def load_all(self) -> bool:
-        return True  # Replace with actual loading logic
+        success = True
+        # Load other rules (existing logic)...
+        # Then load curated sets
+        try:
+            curated_fallback = CuratedFallbackStrategy()
+            self.curated_sets = curated_fallback.curated_sets
+        except Exception as e:
+            logger.error(f"Failed to load curated sets: {e}")
+            success = False
+        return success
 
 # --------------------------
 # Fallback Factory
@@ -271,7 +378,7 @@ def create_fallback_system(logger: Optional[logging.Logger] = None) -> List[Fall
     if not loader.load_all():
         logger.error("Failed to load some fallback rules - using minimal defaults")
 
-    return [
+    strategies = [
         GenreCompatibilityFallback(
             genre_rules=loader.genre_rules,
             similarity_matrix=loader.similarity_matrix,
@@ -291,3 +398,16 @@ def create_fallback_system(logger: Optional[logging.Logger] = None) -> List[Fall
         ),
         PopularityFallback(logger=logger)
     ]
+
+    # Add curated fallback if sets were loaded
+    if loader.curated_sets:
+        strategies.append(
+            CuratedFallbackStrategy(
+                curated_sets=loader.curated_sets,
+                logger=logger
+            )
+        )
+    else:
+        logger.warning("Curated fallback disabled - no sets loaded")
+
+    return strategies

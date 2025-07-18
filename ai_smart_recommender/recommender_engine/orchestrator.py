@@ -7,6 +7,7 @@ Key Improvements:
 3. Lazy loading for large files with caching
 4. Strategy weighting system
 5. Performance timing decorators
+6. Full fallback pipeline including curated sets
 """
 
 import pickle
@@ -17,6 +18,7 @@ import numpy as np
 import logging
 from functools import lru_cache, wraps
 import time
+from dataclasses import asdict
 
 # Shared modules
 from core_config import constants
@@ -53,7 +55,8 @@ class Orchestrator:
         'genre_based': 0.9,
         'mood_based': 0.85,
         'actor_based': 0.8,
-        'fallback': 0.5
+        'fallback': 0.5,
+        'curated_fallback': 0.7  # Higher weight than regular fallbacks
     }
 
     def __init__(self):
@@ -115,7 +118,10 @@ class Orchestrator:
         """Built-in mood to genre mapping"""
         return {
             "Uplifting": [35, 10751, 10402],
-            # ... (rest of mood mappings)
+            "Melancholic": [18, 36, 10749],
+            "Energetic": [28, 12, 16],
+            "Thoughtful": [9648, 878, 53],
+            "Romantic": [10749, 35, 18]
         }
 
     @timed
@@ -134,9 +140,23 @@ class Orchestrator:
         for strategy, weight in strategies:
             self.pipeline.add_primary_strategy(strategy, weight=weight)
 
-        # Fallback system
-        for fallback in create_fallback_system(logger):
-            self.pipeline.add_fallback_strategy(fallback, weight=self.STRATEGY_WEIGHTS['fallback'])
+        # Enhanced fallback system with curated support
+        self._setup_fallback_strategies()
+
+    def _setup_fallback_strategies(self) -> None:
+        """Configure all fallback strategies with proper weighting"""
+        fallback_system = create_fallback_system(logger)
+        
+        for fallback in fallback_system:
+            weight = self.STRATEGY_WEIGHTS.get(
+                fallback.strategy_name, 
+                self.STRATEGY_WEIGHTS['fallback']
+            )
+            self.pipeline.add_fallback_strategy(fallback, weight=weight)
+            
+            # Special handling for curated fallback
+            if fallback.strategy_name == "curated_fallback":
+                logger.info("Curated fallback strategy registered")
 
     @timed
     def get_recommendations(self, context: Dict) -> Tuple[List[Dict], Dict]:
@@ -148,27 +168,83 @@ class Orchestrator:
         """
         logger.info(f"Processing recommendation request: {context.get('request_id', 'no-request-id')}")
         
-        recommendations = self.pipeline.run(context)
-        recommendations_dict = [self._apply_strategy_weights(rec) for rec in recommendations]
+        # Set fallback flag if primary strategies fail
+        context.setdefault('fallback_required', False)
         
-        metadata = {
-            "strategies_used": list({rec.source_strategy for rec in recommendations}),
+        try:
+            recommendations = self.pipeline.run(context)
+            recommendations_dict = [self._format_recommendation(rec) for rec in recommendations]
+            
+            metadata = self._generate_metadata(recommendations, context)
+            
+            return recommendations_dict, metadata
+        except Exception as e:
+            logger.error(f"Recommendation failed: {str(e)}")
+            return self._handle_failure(context)
+
+    def _format_recommendation(self, recommendation: Recommendation) -> Dict:
+        """Apply formatting and weights to recommendation"""
+        rec_dict = asdict(recommendation)
+        
+        # Apply strategy-specific weighting
+        strategy_weight = self.STRATEGY_WEIGHTS.get(
+            recommendation.source_strategy, 
+            1.0
+        )
+        rec_dict['similarity_score'] *= strategy_weight
+        
+        # Add additional metadata for curated sets
+        if recommendation.source_strategy == "curated_fallback":
+            rec_dict['is_curated'] = True
+            rec_dict['special_tag'] = recommendation.metadata.get('set_name', 'Curated Selection')
+        
+        return rec_dict
+
+    def _generate_metadata(self, recommendations: List[Recommendation], context: Dict) -> Dict:
+        """Generate comprehensive metadata about the recommendation process"""
+        strategies_used = {rec.source_strategy for rec in recommendations}
+        
+        return {
+            "strategies_used": list(strategies_used),
             "recommendation_count": len(recommendations),
             "fallback_used": any(rec.is_fallback for rec in recommendations),
+            "curated_used": any(rec.source_strategy == "curated_fallback" for rec in recommendations),
             "context_summary": {
                 k: v for k, v in context.items() 
                 if k not in ['user_prefs', 'explicit_filters']
+            },
+            "performance_metrics": {
+                "average_score": sum(rec.similarity_score for rec in recommendations) / len(recommendations) if recommendations else 0,
+                "strategy_distribution": {
+                    strategy: sum(1 for rec in recommendations if rec.source_strategy == strategy)
+                    for strategy in strategies_used
+                }
             }
         }
-        
-        return recommendations_dict, metadata
 
-    def _apply_strategy_weights(self, recommendation: Recommendation) -> Dict:
-        """Apply strategy weights to recommendation scores"""
-        weighted_rec = recommendation.__dict__.copy()
-        if recommendation.source_strategy in self.STRATEGY_WEIGHTS:
-            weighted_rec['similarity_score'] *= self.STRATEGY_WEIGHTS[recommendation.source_strategy]
-        return weighted_rec
+    def _handle_failure(self, context: Dict) -> Tuple[List[Dict], Dict]:
+        """Handle complete recommendation failure with last-resort fallback"""
+        logger.warning("All strategies failed - attempting emergency fallback")
+        
+        # Try to get any recommendations from the last fallback
+        last_resort_recs = []
+        for fallback in reversed(self.pipeline.fallback_strategies):
+            try:
+                if fallback.should_activate(context):
+                    last_resort_recs = fallback.execute(context)
+                    if last_resort_recs:
+                        break
+            except Exception as e:
+                logger.error(f"Emergency fallback failed: {str(e)}")
+        
+        formatted_recs = [self._format_recommendation(rec) for rec in last_resort_recs]
+        metadata = {
+            "error": "Primary strategies failed",
+            "fallback_used": bool(last_resort_recs),
+            "recommendation_count": len(last_resort_recs)
+        }
+        
+        return formatted_recs, metadata
 
 # Singleton with initialization logging
 try:
@@ -177,6 +253,7 @@ try:
 except Exception as e:
     logger.critical(f"Orchestrator failed to initialize: {str(e)}")
     raise
-# At the bottom of orchestrator.py
+
 def build_pipeline() -> Orchestrator:
+    """Factory method for pipeline construction"""
     return Orchestrator()

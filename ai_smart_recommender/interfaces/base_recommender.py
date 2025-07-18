@@ -20,6 +20,7 @@ class Recommendation:
     score: float
     reason: str
     metadata: Dict[str, Any] = None
+    is_fallback: bool = False 
 
 @runtime_checkable
 class BaseRecommender(Protocol):

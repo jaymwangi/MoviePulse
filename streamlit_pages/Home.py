@@ -7,6 +7,7 @@ from ui_components.MovieTile import MovieTile
 from ui_components.MovieGridView import MovieGridView
 from session_utils.state_tracker import init_session_state, get_current_theme
 from media_assets.styles import load_custom_css
+from session_utils.user_profile import init_profile
 from service_clients.tmdb_client import tmdb_client, FallbackStrategy
 from streamlit.components.v1 import html
 
@@ -325,6 +326,9 @@ def render_app_footer():
 # ----------------------- MAIN EXECUTION -----------------------
 if __name__ == "__main__":
     configure_page()
+
+    from session_utils.user_profile import init_profile
+    init_profile()
     
     # Layout structure
     render_app_header()
