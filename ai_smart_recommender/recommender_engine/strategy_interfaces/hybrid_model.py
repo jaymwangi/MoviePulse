@@ -1,10 +1,7 @@
 """
-Hybrid Recommendation Orchestrator (Final Version)
+Hybrid Recommendation Orchestrator (Enhanced Version)
 
-Combines content-based, collaborative, and contextual filtering with:
-- Intelligent fallback mechanisms
-- Personalized score adjustments
-- Multi-strategy blending
+Now includes genre affinity modeling for personalized recommendations
 """
 
 import logging
@@ -20,6 +17,7 @@ from .contextual_rules import (
     MoodRecommendationStrategy as MoodStrategy
 )
 from .actor_similarity import ActorSimilarityStrategy
+from ai_smart_recommender.user_personalization.genre_affinity import GenreAffinityModel
 from ai_smart_recommender.interfaces.fallback_rules import create_fallback_system
 
 # Service Clients
@@ -64,33 +62,34 @@ class MovieRecommendation:
     reason_label: Optional[str] = None
 
 class ScoreAdjuster:
-    """Handles personalized score adjustments"""
+    """Handles personalized score adjustments with genre affinity"""
     
-    @staticmethod
-    def apply(recommendation: MovieRecommendation, 
-             user_prefs: Dict) -> MovieRecommendation:
+    def __init__(self):
+        self.genre_affinity = GenreAffinityModel()
+        
+    def apply(self, 
+             recommendation: MovieRecommendation, 
+             user_id: Optional[str] = None) -> MovieRecommendation:
         """Apply preference-based score modifications"""
-        if not user_prefs:
+        if not user_id:
             return recommendation
             
-        # Get preferences
-        preferred_genres = set(user_prefs.get("preferred_genres", []))
-        disliked_genres = set(user_prefs.get("disliked_genres", []))
-        preferred_actors = set(user_prefs.get("preferred_actors", []))
-        preferred_moods = [m.lower() for m in user_prefs.get("preferred_moods", [])]
-        
-        # Apply adjustments
-        if any(g in disliked_genres for g in recommendation.genres):
-            recommendation.similarity_score *= 0.5  # Strong penalty
+        try:
+            # Get dynamic genre preferences from viewing history
+            genre_affinity = self.genre_affinity.build_preference_vector(user_id)
             
-        if any(g in preferred_genres for g in recommendation.genres):
-            recommendation.similarity_score *= 1.15  # Genre boost
+            # Apply genre affinity weights
+            genre_score = sum(
+                genre_affinity.get(g.lower(), 0)
+                for g in recommendation.genres
+            )
             
-        if any(a in preferred_actors for a in recommendation.actors):
-            recommendation.similarity_score *= 1.25  # Actor boost
-            
-        if any(m in recommendation.explanation.lower() for m in preferred_moods):
-            recommendation.similarity_score *= 1.3  # Mood boost
+            # Normalize and apply boost
+            if genre_score > 0:
+                recommendation.similarity_score *= (1 + genre_score)
+                
+        except Exception as e:
+            logger.error(f"Genre affinity scoring failed: {str(e)}")
             
         return recommendation
 
@@ -113,7 +112,7 @@ class FallbackCoordinator:
         return []
 
 class HybridRecommender:
-    """Main recommendation orchestrator"""
+    """Main recommendation orchestrator with enhanced personalization"""
 
     def __init__(self):
         logger.info("Initializing HybridRecommender")
@@ -122,8 +121,8 @@ class HybridRecommender:
         self.embeddings, self.embedding_ids = load_embeddings_with_ids()
         self.user_prefs = load_user_preferences()
         self.genre_mappings = load_genre_mappings()
-        self.mood_genre_map = load_mood_genre_map()  # ✅ Required for MoodStrategy
-        self.actor_similarity = load_actor_similarity()  # ✅ Load actor similarity data
+        self.mood_genre_map = load_mood_genre_map()
+        self.actor_similarity = load_actor_similarity()
 
         # Initialize strategies
         self.strategies = {
@@ -141,6 +140,7 @@ class HybridRecommender:
         }
 
         self.fallback_coordinator = FallbackCoordinator()
+        self.score_adjuster = ScoreAdjuster()  # Now with genre affinity
 
         logger.info(f"Initialized with {len(self.strategies)} core strategies")
 
@@ -154,13 +154,10 @@ class HybridRecommender:
         min_fallback_threshold: float = 0.4,
         show_reasons: bool = True
     ) -> List[MovieRecommendation]:
-        """Main recommendation interface"""
+        """Main recommendation interface with personalized genre affinity"""
         # Input validation
         if not any([target_movie_id, user_mood, user_id]):
             return self._get_fallback_recommendations(limit)
-        
-        # Get context
-        user_prefs = self._get_user_preferences(user_id)
         
         # Generate recommendations
         recommendations = self._execute_primary_strategies(
@@ -168,34 +165,33 @@ class HybridRecommender:
             user_mood,
             strategy,
             limit,
-            user_prefs
+            user_id
         )
         
         # Fallback if needed
         if self._needs_fallback(recommendations, min_fallback_threshold, limit):
             fallback_recs = self.fallback_coordinator.get_recommendations({
                 'target_movie_id': target_movie_id,
-                'user_prefs': user_prefs,
+                'user_id': user_id,
                 'existing_recs': [r.movie_id for r in recommendations],
                 'limit': limit - len(recommendations)
             })
             recommendations.extend(fallback_recs)
         
-        # Final processing
+        # Final processing with personalized scoring
         return self._process_recommendations(
             recommendations,
-            user_prefs,
+            user_id,
             show_reasons
         )[:limit]
 
-    # Helper methods
     def _execute_primary_strategies(self, *args, **kwargs):
         """Execute core recommendation strategies"""
         # Implementation remains same as original
         pass
         
-    def _process_recommendations(self, recommendations, user_prefs, show_reasons):
-        """Deduplicate, score, and sort recommendations"""
+    def _process_recommendations(self, recommendations, user_id, show_reasons):
+        """Deduplicate, score, and sort recommendations with genre affinity"""
         # Deduplication
         unique_recs = {}
         for rec in recommendations:
@@ -206,37 +202,42 @@ class HybridRecommender:
             else:
                 unique_recs[rec.movie_id] = rec
         
-        # Scoring and sorting
+        # Personalized scoring
         processed = [
-            ScoreAdjuster.apply(rec, user_prefs)
+            self.score_adjuster.apply(rec, user_id)
             for rec in unique_recs.values()
         ]
         processed.sort(key=lambda x: x.similarity_score, reverse=True)
         
         # Add reasons if requested
-        if show_reasons:
-            processed = self._add_reason_labels(processed, user_prefs)
+        if show_reasons and user_id:
+            processed = self._add_personalized_reason_labels(processed, user_id)
             
         return processed
 
-    def _add_reason_labels(self, recommendations, user_prefs):
-        """Generate human-readable explanation strings"""
-        reason_map = {
-            "content_based": "Similar to content you've enjoyed",
-            "genre_based": "Matches your favorite genres",
-            "mood_based": "Fits your current mood",
-            "actor_based": "Features actors you like",
-            "hybrid": "Combines multiple factors you enjoy"
-        }
-        
-        for rec in recommendations:
-            if rec.source_strategy in reason_map:
-                rec.reason_label = reason_map[rec.source_strategy]
-                # Add specific details if available
-                if rec.source_strategy == "genre_based" and user_prefs.get("preferred_genres"):
-                    matched = [g for g in rec.genres if g in user_prefs["preferred_genres"]]
-                    if matched:
-                        rec.reason_label = f"Matches your favorite genres: {', '.join(matched[:2])}"
+    def _add_personalized_reason_labels(self, recommendations, user_id):
+        """Generate human-readable explanations using genre affinity"""
+        try:
+            affinity_model = GenreAffinityModel()
+            top_genres = affinity_model.get_top_genres(user_id)
+            
+            for rec in recommendations:
+                # Find matching genres with user's top preferences
+                matched_genres = [
+                    g for g in rec.genres 
+                    if g.lower() in top_genres
+                ][:2]
+                
+                if matched_genres:
+                    rec.reason_label = (
+                        f"Matches your favorite genres: {', '.join(matched_genres)}"
+                    )
+                elif rec.source_strategy == "genre_based":
+                    rec.reason_label = "Similar genre to movies you've watched"
+                    
+        except Exception as e:
+            logger.error(f"Failed to generate personalized reasons: {str(e)}")
+            
         return recommendations
 
     def _get_fallback_recommendations(self, limit):

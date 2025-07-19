@@ -24,6 +24,12 @@ USER_PREFERENCES_FILE = RECOMMENDER_DATA_DIR / "user_preferences.json"
 GENRES_FILE = RECOMMENDER_DATA_DIR / "genres.json"
 MOODS_FILE = RECOMMENDER_DATA_DIR / "moods.json"
 
+# Logging configuration
+USER_PREFS_LOG_FORMAT = (
+    "%(asctime)s | %(levelname)s | user=%(user_id)s | "
+    "top_genres=%(genres)s | strength=%(strength).2f | "
+    "source=%(source)s"
+)
 
 # TMDB image URLs
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"

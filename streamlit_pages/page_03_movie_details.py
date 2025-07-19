@@ -27,6 +27,7 @@ from core_config.constants import (
 )
 from streamlit.components.v1 import html
 from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import hybrid_recommender
+from ai_smart_recommender.user_personalization.watch_history import WatchHistory
 
 # ----------------------- CSS LOADING -----------------------
 @st.cache_data
@@ -338,6 +339,22 @@ def render_movie_details():
         
         with st.spinner("Loading cinematic details..."):
             details = get_cached_movie_details(movie_id)
+            
+            # Add watch history tracking here
+            try:
+                if details and hasattr(details, "title"):
+                    history = WatchHistory()
+                    genres = [g.name for g in getattr(details, "genres", [])] or ["unknown"]
+                    history.add_entry(
+                        user_id=st.session_state.get("user_id", "anonymous"),
+                        movie_id=movie_id,
+                        genres=genres,
+                        source="organic"  # Change to "starter_pack" if needed
+                    )
+            except Exception as e:
+                logger.error(f"Failed to record watch history: {str(e)}", exc_info=True)
+                # Fail silently so it doesn't interrupt user experience
+            
             videos = get_cached_movie_videos(movie_id)
             if not details or not hasattr(details, "title"):
                 raise RuntimeError("Incomplete movie data received")

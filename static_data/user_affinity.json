@@ -1,0 +1,9 @@
+{
+  "user123": {
+    "view_history": [
+      {"movie_id": 550, "genres": ["drama"], "timestamp": "2023-07-20T14:30:00"},
+      {"movie_id": 680, "genres": ["action", "thriller"], "timestamp": "2023-07-21T09:15:00"}
+    ],
+    "preference_vector": {}
+  }
+}
