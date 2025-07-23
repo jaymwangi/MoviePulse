@@ -88,5 +88,78 @@
     ],
     "weight": 1.0,
     "description": "Movies that challenge your mind or world view"
+  },
+  "Cozy": {
+    "genres": [
+      10751,
+      35,
+      10402,
+      10749
+    ],
+    "weight": 0.8,
+    "description": "Comforting, warm, and familiar films perfect for relaxation"
+  },
+  "Eerie": {
+    "genres": [
+      27,
+      9648,
+      53
+    ],
+    "weight": 1.1,
+    "description": "Unsettling, atmospheric, and haunting stories"
+  },
+  "Reflective": {
+    "genres": [
+      18,
+      36,
+      9648
+    ],
+    "weight": 1.0,
+    "description": "Contemplative films that encourage introspection"
+  },
+  "Adventurous": {
+    "genres": [
+      12,
+      14,
+      28
+    ],
+    "weight": 1.3,
+    "description": "Journeys, exploration, and epic quests"
+  },
+  "Nostalgic": {
+    "genres": [
+      10770,
+      10751,
+      10402
+    ],
+    "weight": 1.0,
+    "description": "Films that evoke sentimental memories"
+  },
+  "Mind-Bending": {
+    "genres": [
+      878,
+      9648,
+      53
+    ],
+    "weight": 1.2,
+    "description": "Reality-warping, unconventional storytelling"
+  },
+  "Heartwarming": {
+    "genres": [
+      10751,
+      35,
+      18
+    ],
+    "weight": 1.1,
+    "description": "Emotionally satisfying stories about human connection"
+  },
+  "Gritty": {
+    "genres": [
+      80,
+      18,
+      28
+    ],
+    "weight": 1.0,
+    "description": "Raw, realistic portrayals of tough situations"
   }
 }

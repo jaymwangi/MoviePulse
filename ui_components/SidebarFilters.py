@@ -1,6 +1,5 @@
 # ui_components/SidebarFilters.py
 import streamlit as st
-import json
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from urllib.parse import parse_qs
@@ -8,7 +7,7 @@ from session_utils.state_tracker import get_current_theme
 from session_utils.session_helpers import load_genres, load_moods
 from session_utils.watchlist_manager import load_watchlist
 from session_utils.user_profile import set_critic_mode, get_critic_mode
-
+from ui_components.MoodChip import MoodSelector, clear_mood_selections, MoodManager
 
 # Constants
 DEFAULT_YEAR_RANGE = (2000, datetime.now().year)
@@ -174,10 +173,10 @@ def get_active_filters() -> Dict:
     """Returns current filters in API-ready format"""
     filters = {
         "genres": st.session_state.selected_genres,
-        "moods": st.session_state.selected_moods,
+        "moods": st.session_state.selected_mood_names,  # Use names instead of IDs
         "ready": _should_trigger_search(),
         "critic_mode": st.session_state.critic_mode,
-        "watchlist_active": st.session_state.get("watchlist_active", False)  # Add this line
+        "watchlist_active": st.session_state.get("watchlist_active", False)
     }
     
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
@@ -289,53 +288,55 @@ def render_sidebar_filters():
             if selected:
                 st.caption(f"📌 {len(selected)} selected")
 
-
+      
         # ---- MOOD SELECTOR ----
         with st.expander("**😊 Moods**", expanded=True):
-            all_moods = load_moods()  # This returns a list of mood dictionaries
+            # Get all available moods from MoodManager
+            available_moods = MoodManager.get_available_moods()
+            mood_config = MoodManager.get_mood_config()
             
-            # Create display options with (id, display_text)
-            mood_options = [
-                (mood["id"], f"{mood.get('icon', '🎬')} {mood['name']}") 
-                for mood in all_moods
+            # Convert legacy mood IDs to names for backward compatibility
+            legacy_moods = {m['id']: m['name'] for m in load_moods()}
+            current_moods = [
+                legacy_moods.get(mood_id, "") 
+                for mood_id in st.session_state.selected_moods
+                if mood_id in legacy_moods
             ]
             
-            # Get currently selected mood labels
-            selected_ids = st.session_state.selected_moods
-            selected_labels = [
-                label for (id, label) in mood_options 
-                if id in selected_ids
-            ]
-            
-            # Render the multiselect with descriptions as tooltips
-            selected_labels = st.multiselect(
-                "Select moods",
-                options=[label for (id, label) in mood_options],
-                default=selected_labels,
-                key="mood_selector",
-                label_visibility="collapsed",
-                help="Select one or more moods to filter by",
-                on_change=lambda: st.session_state.update({
-                    "last_filter_change": datetime.now().timestamp()
-                })
+            # Create a multi-select dropdown with emoji support
+            selected_moods = st.multiselect(
+                "Select up to 3 moods",
+                available_moods,
+                default=current_moods,
+                format_func=lambda x: f"{mood_config[x]['emoji']} {x}",
+                max_selections=3,
+                key="mood_multiselect"
             )
             
-            # Show descriptions for selected moods
-            if selected_labels:
-                st.caption("Selected moods:")
-                for mood in all_moods:
-                    if f"{mood.get('icon', '🎬')} {mood['name']}" in selected_labels:
-                        st.caption(f"• {mood['description']}")
-            
-            # Map selected labels back to mood IDs
-            new_selected_ids = [
-                id for (id, label) in mood_options 
-                if label in selected_labels
+            # Update both name and ID session states
+            st.session_state.selected_mood_names = selected_moods
+            st.session_state.selected_moods = [
+                mood_id 
+                for mood_id, mood_name in legacy_moods.items() 
+                if mood_name in selected_moods
             ]
             
-            if new_selected_ids != st.session_state.selected_moods:
-                st.session_state.selected_moods = new_selected_ids
-                st.session_state.last_filter_change = datetime.now().timestamp()
+            # Show descriptions for selected moods
+            if selected_moods:
+                st.caption("Selected moods:")
+                for mood_name in selected_moods:
+                    desc = mood_config.get(mood_name, {}).get("description", "")
+                    st.caption(f"• {mood_config[mood_name]['emoji']} **{mood_name}**: {desc}")
+            
+            # Clear button
+            if selected_moods and st.button(
+                "Clear Moods",
+                key="clear_moods_btn",
+                use_container_width=True
+            ):
+                st.session_state.selected_mood_names = []
+                st.session_state.selected_moods = []
+                st.rerun()
 
         # ---- YEAR FILTER ----
         with st.expander("**📅 Release Year**", expanded=True):

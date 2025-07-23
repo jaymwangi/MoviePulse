@@ -8,5 +8,13 @@
   { "id": 7, "name": "Dark", "description": "Gritty, serious, sometimes disturbing themes" },
   { "id": 8, "name": "Empowering", "description": "Strong characters overcoming odds, leaving you inspired" },
   { "id": 9, "name": "Whimsical", "description": "Playful, imaginative, lighthearted, and fantastical" },
-  { "id": 10, "name": "Thought-Provoking", "description": "Movies that challenge your mind or world view" }
+  { "id": 10, "name": "Thought-Provoking", "description": "Movies that challenge your mind or world view" },
+  { "id": 11, "name": "Cozy", "description": "Comforting, warm, and familiar films perfect for relaxation" },
+  { "id": 12, "name": "Eerie", "description": "Unsettling, atmospheric, and haunting stories" },
+  { "id": 13, "name": "Reflective", "description": "Contemplative films that encourage introspection" },
+  { "id": 14, "name": "Adventurous", "description": "Journeys, exploration, and epic quests" },
+  { "id": 15, "name": "Nostalgic", "description": "Films that evoke sentimental memories" },
+  { "id": 16, "name": "Mind-Bending", "description": "Reality-warping, unconventional storytelling" },
+  { "id": 17, "name": "Heartwarming", "description": "Emotionally satisfying stories about human connection" },
+  { "id": 18, "name": "Gritty", "description": "Raw, realistic portrayals of tough situations" }
 ]

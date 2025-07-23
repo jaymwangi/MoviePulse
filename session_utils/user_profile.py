@@ -2,7 +2,7 @@
 import json
 import streamlit as st
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import uuid
 
 # Constants
@@ -14,7 +14,8 @@ DEFAULT_PROFILE = {
     "watchlist": [],
     "view_history": [],
     "starter_pack": None,
-    "preferences": {}
+    "preferences": {},
+    "selected_moods": []  # New field for mood preferences
 }
 
 def _ensure_profile_file():
@@ -42,7 +43,7 @@ def load_current_profile() -> Dict[str, Any]:
             # Ensure all default fields exist in loaded profile
             for key, value in DEFAULT_PROFILE.items():
                 if key not in profile:
-                    profile[key] = value
+                    profile[key] = value.copy() if hasattr(value, 'copy') else value
             return profile
     except (json.JSONDecodeError, FileNotFoundError):
         return DEFAULT_PROFILE.copy()
@@ -108,9 +109,46 @@ def get_user_preferences() -> Dict[str, int]:
     profile = load_current_profile()
     return profile.get("preferences", {})
 
+# ===== NEW MOOD-RELATED FUNCTIONS =====
+def set_selected_moods(moods: List[str]):
+    """
+    Set and persist the user's selected moods
+    Args:
+        moods: List of mood strings (must match keys in mood_genre_mappings.json)
+    """
+    profile = load_current_profile()
+    profile["selected_moods"] = moods
+    save_profile(profile)
+    st.session_state.selected_moods = moods  # Keep in sync with session
+
+def get_selected_moods() -> List[str]:
+    """Get the user's current mood selections"""
+    if "selected_moods" not in st.session_state:
+        profile = load_current_profile()
+        st.session_state.selected_moods = profile.get("selected_moods", [])
+    return st.session_state.selected_moods.copy()  # Return copy to prevent direct modification
+
+def clear_selected_moods():
+    """Clear all mood selections"""
+    set_selected_moods([])
+
+def add_selected_mood(mood: str):
+    """Add a single mood to selections if not already present"""
+    current_moods = get_selected_moods()
+    if mood not in current_moods:
+        set_selected_moods(current_moods + [mood])
+
+def remove_selected_mood(mood: str):
+    """Remove a specific mood from selections"""
+    current_moods = get_selected_moods()
+    if mood in current_moods:
+        set_selected_moods([m for m in current_moods if m != mood])
+
+# ===== PROFILE INITIALIZATION =====
 def init_profile():
     """Initialize profile if not already loaded"""
     if "profile_initialized" not in st.session_state:
         get_critic_mode()  # Load profile
         get_starter_pack()  # Load starter pack
+        get_selected_moods()  # Load mood preferences
         st.session_state.profile_initialized = True
