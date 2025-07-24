@@ -2,12 +2,23 @@
 import streamlit as st
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
+import json
+from pathlib import Path
 from urllib.parse import parse_qs
 from session_utils.state_tracker import get_current_theme
 from session_utils.session_helpers import load_genres, load_moods
 from session_utils.watchlist_manager import load_watchlist
 from session_utils.user_profile import set_critic_mode, get_critic_mode
 from ui_components.MoodChip import MoodSelector, clear_mood_selections, MoodManager
+from session_utils.state_tracker import (
+    is_date_night_active,
+    get_blended_prefs,
+    end_date_night,
+    initiate_date_night, 
+    get_date_night_status
+)
+from session_utils.date_session_logger import DateSessionLogger
+from ai_smart_recommender.user_personalization.date_night_blender import blend_packs
 
 # Constants
 DEFAULT_YEAR_RANGE = (2000, datetime.now().year)
@@ -32,8 +43,15 @@ CRITIC_MODES = {
 }
 
 
+
+
 def _init_session_state():
     """Initialize session state with URL params or defaults"""
+    if 'show_date_night_modal' not in st.session_state:
+            st.session_state.show_date_night_modal = False
+    if 'date_night_active' not in st.session_state:
+            st.session_state.date_night_active = False
+
     if "filter_init_complete" not in st.session_state:
         url_params = st.query_params.to_dict()
         
@@ -173,11 +191,20 @@ def get_active_filters() -> Dict:
     """Returns current filters in API-ready format"""
     filters = {
         "genres": st.session_state.selected_genres,
-        "moods": st.session_state.selected_mood_names,  # Use names instead of IDs
+        "moods": st.session_state.selected_mood_names,
         "ready": _should_trigger_search(),
         "critic_mode": st.session_state.critic_mode,
         "watchlist_active": st.session_state.get("watchlist_active", False)
     }
+    
+    # Apply Date Night preferences if active
+    if is_date_night_active():
+        blended_prefs = get_blended_prefs()
+        if blended_prefs:
+            filters.update({
+                "genres": blended_prefs.get("genres", []),
+                "moods": blended_prefs.get("moods", {})
+            })
     
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
         filters["year"] = int(st.session_state.exact_year)
@@ -266,6 +293,101 @@ def render_sidebar_filters():
             except Exception as e:
                 st.warning("Couldn't load critic preferences")
                 st.session_state.critic_mode = "default"
+
+        # ---- DATE NIGHT MODE ----
+        with st.expander("**💑 Date Night Mode**", expanded=False):
+            # Style the expander header when active
+            st.markdown("""
+            <style>
+                div[data-testid="stExpander"] details[open] summary h2 {
+                    color: #ff4b4b !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            if is_date_night_active():
+                try:
+                    # Get the current status safely
+                    status = {}
+                    if hasattr(st.session_state, 'original_packs'):
+                        status = {
+                            'is_active': True,
+                            'original_packs': st.session_state.original_packs
+                        }
+                    
+                    if status.get('is_active'):
+                        pack_a = status['original_packs']['pack_a']['name']
+                        pack_b = status['original_packs']['pack_b']['name']
+                        
+                        st.success(f"❤️ Active: {pack_a} + {pack_b}")
+                        st.caption("Recommendations are blended for both viewers")
+                        
+                        if st.button(
+                            "End Date Night", 
+                            type="primary",
+                            use_container_width=True,
+                            help="Return to individual recommendations"
+                        ):
+                            end_date_night()
+                            st.rerun()
+                except Exception as e:
+                    st.error(f"Error showing date night status: {str(e)}")
+                    end_date_night()
+            else:
+                # Show activation button
+                if st.button(
+                    "Start Date Night Mode",
+                    use_container_width=True,
+                    help="Combine preferences with a partner"
+                ):
+                    st.session_state.show_date_night_modal = True
+                    
+                # Modal for pack selection
+                if st.session_state.get("show_date_night_modal"):
+                    with st.container(border=True):
+                        st.write("**Select Starter Packs**")
+                        
+                        packs = load_starter_packs()
+                        if not packs:
+                            st.warning("No starter packs available")
+                            st.session_state.show_date_night_modal = False
+                        else:
+                            pack_names = sorted(packs.keys())
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                pack_a = st.selectbox(
+                                    "Your Pack",
+                                    pack_names,
+                                    key="date_night_pack_a",
+                                    index=None
+                                )
+                            with col2:
+                                pack_b = st.selectbox(
+                                    "Partner's Pack",
+                                    pack_names,
+                                    key="date_night_pack_b",
+                                    index=None
+                                )
+                            
+                            cols = st.columns(2)
+                            with cols[0]:
+                                if st.button("Activate", type="primary"):
+                                    if pack_a and pack_b:
+                                        try:
+                                            blended_prefs = blend_packs(packs[pack_a], packs[pack_b])
+                                            initiate_date_night(packs[pack_a], packs[pack_b])
+                                            st.session_state.show_date_night_modal = False
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Error activating Date Night: {str(e)}")
+                                    else:
+                                        st.warning("Please select both packs")
+                            
+                            with cols[1]:
+                                if st.button("Cancel"):
+                                    st.session_state.show_date_night_modal = False
+                                    st.rerun()
 
         # ---- GENRE SELECTOR ----
         with st.expander("**🎭 Genres**", expanded=True):
@@ -590,3 +712,49 @@ def render_sidebar_filters():
                 {active_filters} active
             </div>
             """, unsafe_allow_html=True)
+
+def load_starter_packs() -> Dict[str, Dict]:
+    """Load and validate starter packs with your current structure"""
+    packs_path = Path(__file__).parent.parent / "static_data" / "starter_packs.json"
+    
+    try:
+        with open(packs_path, "r", encoding='utf-8') as f:
+            data = json.load(f)
+            packs = data.get("packs", {})
+            
+            valid_packs = {}
+            for name, pack in packs.items():
+                # Check for required fields in YOUR structure
+                required = ["type", "movies", "moods", "compatible_with"]
+                missing = [k for k in required if k not in pack]
+                if missing:
+                    st.warning(f"Skipping '{name}': Missing fields - {', '.join(missing)}")
+                    continue
+                
+                # Validate data types in YOUR structure
+                if not isinstance(pack["movies"], list):
+                    st.warning(f"Skipping '{name}': 'movies' must be a list")
+                    continue
+                    
+                if not isinstance(pack["moods"], dict):
+                    st.warning(f"Skipping '{name}': 'moods' must be a dictionary")
+                    continue
+                
+                if not isinstance(pack["compatible_with"], list):
+                    st.warning(f"Skipping '{name}': 'compatible_with' must be a list")
+                    continue
+                
+                # Add a display name if not present
+                if "name" not in pack:
+                    pack["name"] = name
+                
+                valid_packs[name] = pack
+            
+            return valid_packs
+            
+    except json.JSONDecodeError:
+        st.error("Invalid JSON format in starter packs file")
+        return {}
+    except Exception as e:
+        st.error(f"Error loading packs: {str(e)}")
+        return {}

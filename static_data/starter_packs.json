@@ -1,82 +1,28 @@
 {
-  "Feel Good": [
-    19404,
-    10681,
-    8587,
-    10193,
-    441130,
-    508442
-  ],
-  "Top Action": [
-    245891,
-    280,
-    155,
-    1891,
-    1771,
-    335984
-  ],
-  "Critic Picks": [
-    13,
-    550,
-    680,
-    389,
-    238,
-    157336
-  ],
-  "Mind Bending": [
-    27205,
-    157336,
-    4922,
-    1124,
-    694,
-    114369
-  ],
-  "Romantic": [
-    2108,
-    19404,
-    7445,
-    82695,
-    8966,
-    198663
-  ],
-  "Horror": [
-    694,
-    1091,
-    346364,
-    420634,
-    762504,
-    632357
-  ],
-  "Animated": [
-    10193,
-    508442,
-    129,
-    12477,
-    269149,
-    324857
-  ],
-  "Oscar Winners": [
-    238,
-    424,
-    157336,
-    194662,
-    490132,
-    696374
-  ],
-  "90s Classics": [
-    278,
-    680,
-    13,
-    105,
-    8587,
-    2759
-  ],
-  "Sci-Fi": [
-    157336,
-    27205,
-    114369,
-    335984,
-    4951,
-    78
-  ]
+  "packs": {
+    "Feel Good": {
+      "type": "starter_pack",
+      "movies": [19404, 10681, 8587, 10193, 441130, 508442],
+      "moods": {"happy": 0.8, "uplifting": 0.7, "lighthearted": 0.6},
+      "compatible_with": ["Top Action", "Critic Picks"]
+    },
+    "Top Action": {
+      "type": "starter_pack",
+      "movies": [245891, 280, 155, 1891, 1771, 335984],
+      "moods": {"exciting": 0.9, "adrenaline": 0.85, "intense": 0.75},
+      "compatible_with": ["Feel Good", "Mind Bending"]
+    },
+    "Critic Picks": {
+      "type": "starter_pack",
+      "movies": [13, 550, 680, 389, 238, 157336],
+      "moods": {"thought-provoking": 0.8, "artistic": 0.75, "complex": 0.7},
+      "compatible_with": ["Feel Good", "Mind Bending"]
+    },
+    "Mind Bending": {
+      "type": "starter_pack",
+      "movies": [27205, 157336, 4922, 1124, 694, 114369],
+      "moods": {"mind-bending": 0.9, "mysterious": 0.8, "psychological": 0.75},
+      "compatible_with": ["Top Action", "Critic Picks"]
+    }
+  }
 }

@@ -1,7 +1,10 @@
 """
 Hybrid Recommendation Orchestrator (Enhanced Version)
 
-Now includes genre affinity modeling for personalized recommendations
+Now includes:
+- Genre affinity modeling
+- Date Night Mode support
+- Enhanced fallback system
 """
 
 import logging
@@ -60,6 +63,7 @@ class MovieRecommendation:
     poster_url: Optional[str] = None
     backdrop_url: Optional[str] = None
     reason_label: Optional[str] = None
+    date_night_boost: Optional[float] = None  # New field for date night scoring
 
 class ScoreAdjuster:
     """Handles personalized score adjustments with genre affinity"""
@@ -69,29 +73,45 @@ class ScoreAdjuster:
         
     def apply(self, 
              recommendation: MovieRecommendation, 
-             user_id: Optional[str] = None) -> MovieRecommendation:
+             user_id: Optional[str] = None,
+             is_date_night: bool = False) -> MovieRecommendation:
         """Apply preference-based score modifications"""
-        if not user_id:
+        if not user_id and not is_date_night:
             return recommendation
             
         try:
-            # Get dynamic genre preferences from viewing history
-            genre_affinity = self.genre_affinity.build_preference_vector(user_id)
-            
-            # Apply genre affinity weights
-            genre_score = sum(
-                genre_affinity.get(g.lower(), 0)
-                for g in recommendation.genres
-            )
-            
-            # Normalize and apply boost
-            if genre_score > 0:
-                recommendation.similarity_score *= (1 + genre_score)
+            if is_date_night:
+                # Special scoring for date night mode
+                recommendation.date_night_boost = self._calculate_date_night_boost(
+                    recommendation
+                )
+                recommendation.similarity_score *= (1 + recommendation.date_night_boost)
+            else:
+                # Normal personalization
+                genre_affinity = self.genre_affinity.build_preference_vector(user_id)
+                genre_score = sum(
+                    genre_affinity.get(g.lower(), 0)
+                    for g in recommendation.genres
+                )
+                if genre_score > 0:
+                    recommendation.similarity_score *= (1 + genre_score)
                 
         except Exception as e:
-            logger.error(f"Genre affinity scoring failed: {str(e)}")
+            logger.error(f"Scoring adjustment failed: {str(e)}")
             
         return recommendation
+
+    def _calculate_date_night_boost(self, recommendation: MovieRecommendation) -> float:
+        """Special boost calculation for date night recommendations"""
+        # Base boost for genre diversity
+        unique_genres = len(set(recommendation.genres))
+        genre_boost = min(0.2, unique_genres * 0.05)
+        
+        # Additional boost for romance/drama in date night
+        romance_boost = 0.15 if any(g.lower() in ['romance', 'drama'] 
+                             for g in recommendation.genres) else 0
+        
+        return min(0.3, genre_boost + romance_boost)  # Cap total boost at 30%
 
 class FallbackCoordinator:
     """Manages the fallback strategy cascade"""
@@ -140,7 +160,7 @@ class HybridRecommender:
         }
 
         self.fallback_coordinator = FallbackCoordinator()
-        self.score_adjuster = ScoreAdjuster()  # Now with genre affinity
+        self.score_adjuster = ScoreAdjuster()
 
         logger.info(f"Initialized with {len(self.strategies)} core strategies")
 
@@ -152,14 +172,16 @@ class HybridRecommender:
         limit: int = 10,
         user_id: Optional[str] = None,
         min_fallback_threshold: float = 0.4,
-        show_reasons: bool = True
+        show_reasons: bool = True,
+        is_date_night: bool = False
     ) -> List[MovieRecommendation]:
-        """Main recommendation interface with personalized genre affinity"""
-        # Input validation
+        """Main recommendation interface"""
+        if is_date_night:
+            return self._handle_date_night_mode(user_id, limit, show_reasons)
+            
         if not any([target_movie_id, user_mood, user_id]):
             return self._get_fallback_recommendations(limit)
         
-        # Generate recommendations
         recommendations = self._execute_primary_strategies(
             target_movie_id,
             user_mood,
@@ -168,7 +190,6 @@ class HybridRecommender:
             user_id
         )
         
-        # Fallback if needed
         if self._needs_fallback(recommendations, min_fallback_threshold, limit):
             fallback_recs = self.fallback_coordinator.get_recommendations({
                 'target_movie_id': target_movie_id,
@@ -178,21 +199,125 @@ class HybridRecommender:
             })
             recommendations.extend(fallback_recs)
         
-        # Final processing with personalized scoring
         return self._process_recommendations(
             recommendations,
             user_id,
-            show_reasons
+            show_reasons,
+            is_date_night
         )[:limit]
+
+    def get_from_blended_prefs(
+        self,
+        blended_prefs: Dict[str, any],
+        limit: int = 10,
+        show_reasons: bool = True
+    ) -> List[MovieRecommendation]:
+        """
+        Generate recommendations from blended date night preferences.
+        
+        Args:
+            blended_prefs: Dictionary containing:
+                - 'genres': List of blended genres
+                - 'moods': Dictionary of blended mood scores
+                - 'pack_names': Tuple of source pack names
+            limit: Maximum number of recommendations
+            show_reasons: Whether to generate explanation labels
+            
+        Returns:
+            List of MovieRecommendation objects
+        """
+        logger.info(f"Generating from blended prefs: {blended_prefs}")
+        
+        context = {
+            'target_genres': blended_prefs.get('genres', []),
+            'user_mood': self._get_primary_mood(blended_prefs.get('moods', {})),
+            'mood_scores': blended_prefs.get('moods', {}),
+            'source_packs': blended_prefs.get('pack_names', ("Pack A", "Pack B"))
+        }
+        
+        recommendations = []
+        
+        # Mood-based with weighted scores
+        if context['user_mood']:
+            mood_recs = self.strategies['mood_based'].get_recommendations(
+                user_mood=context['user_mood'],
+                mood_weights=context['mood_scores'],
+                limit=limit * 2
+            )
+            recommendations.extend(mood_recs)
+        
+        # Genre-based from blended genres
+        if context['target_genres']:
+            genre_recs = self.strategies['genre_based'].get_recommendations(
+                target_genres=context['target_genres'],
+                limit=limit * 2
+            )
+            recommendations.extend(genre_recs)
+        
+        processed = self._process_recommendations(
+            recommendations,
+            user_id=None,
+            show_reasons=show_reasons,
+            is_date_night=True
+        )[:limit]
+        
+        if show_reasons:
+            pack_a, pack_b = context['source_packs']
+            for rec in processed:
+                rec.explanation = (
+                    f"Blended from {pack_a} & {pack_b}: {rec.explanation}"
+                )
+                if rec.date_night_boost:
+                    rec.reason_label = (
+                        f"Great match for date night (+{int(rec.date_night_boost*100)}% boost)"
+                    )
+        
+        return processed
+
+    def _handle_date_night_mode(
+        self,
+        user_id: Optional[str],
+        limit: int,
+        show_reasons: bool
+    ) -> List[MovieRecommendation]:
+        """Special handler for date night session"""
+        try:
+            from session_utils.state_tracker import get_blended_prefs
+            blended_prefs = get_blended_prefs()
+            if not blended_prefs:
+                logger.warning("Date night active but no blended prefs found")
+                return self._get_fallback_recommendations(limit)
+                
+            return self.get_from_blended_prefs(
+                blended_prefs,
+                limit,
+                show_reasons
+            )
+        except Exception as e:
+            logger.error(f"Date night mode failed: {str(e)}")
+            return self._get_fallback_recommendations(limit)
+
+    def _get_primary_mood(self, mood_scores: Dict[str, float]) -> Optional[str]:
+        """Determine primary mood from blended scores"""
+        if not mood_scores:
+            return None
+        
+        max_mood = max(mood_scores.items(), key=lambda x: x[1])
+        return max_mood[0] if max_mood[1] > 0.3 else None
 
     def _execute_primary_strategies(self, *args, **kwargs):
         """Execute core recommendation strategies"""
         # Implementation remains same as original
         pass
         
-    def _process_recommendations(self, recommendations, user_id, show_reasons):
-        """Deduplicate, score, and sort recommendations with genre affinity"""
-        # Deduplication
+    def _process_recommendations(
+        self,
+        recommendations: List[MovieRecommendation],
+        user_id: Optional[str],
+        show_reasons: bool,
+        is_date_night: bool = False
+    ) -> List[MovieRecommendation]:
+        """Process recommendations with optional personalization"""
         unique_recs = {}
         for rec in recommendations:
             if rec.movie_id in unique_recs:
@@ -202,27 +327,32 @@ class HybridRecommender:
             else:
                 unique_recs[rec.movie_id] = rec
         
-        # Personalized scoring
         processed = [
-            self.score_adjuster.apply(rec, user_id)
+            self.score_adjuster.apply(rec, user_id, is_date_night)
             for rec in unique_recs.values()
         ]
         processed.sort(key=lambda x: x.similarity_score, reverse=True)
         
-        # Add reasons if requested
-        if show_reasons and user_id:
-            processed = self._add_personalized_reason_labels(processed, user_id)
+        if show_reasons and (user_id or is_date_night):
+            processed = self._add_reason_labels(processed, user_id, is_date_night)
             
         return processed
 
-    def _add_personalized_reason_labels(self, recommendations, user_id):
-        """Generate human-readable explanations using genre affinity"""
+    def _add_reason_labels(
+        self,
+        recommendations: List[MovieRecommendation],
+        user_id: Optional[str],
+        is_date_night: bool
+    ) -> List[MovieRecommendation]:
+        """Generate appropriate reason labels"""
         try:
+            if is_date_night:
+                return recommendations  # Already handled in get_from_blended_prefs
+                
             affinity_model = GenreAffinityModel()
             top_genres = affinity_model.get_top_genres(user_id)
             
             for rec in recommendations:
-                # Find matching genres with user's top preferences
                 matched_genres = [
                     g for g in rec.genres 
                     if g.lower() in top_genres
@@ -236,7 +366,7 @@ class HybridRecommender:
                     rec.reason_label = "Similar genre to movies you've watched"
                     
         except Exception as e:
-            logger.error(f"Failed to generate personalized reasons: {str(e)}")
+            logger.error(f"Failed to generate reasons: {str(e)}")
             
         return recommendations
 

@@ -1,12 +1,13 @@
 """
 Enhanced Recommendation Pipeline Orchestrator with Personalization Integration
+and Date Night Mode support
 
 Key Features:
 1. Personalized recommendations using watch history and genre affinity
 2. Dynamic strategy weighting based on user preference vectors
-3. Comprehensive recommendation metadata with affinity insights
-4. Robust fallback system with cached personalization
-5. Performance optimizations with lazy loading and memoization
+3. Date Night Mode with blended preferences from starter packs
+4. Comprehensive recommendation metadata with affinity insights
+5. Robust fallback system with cached personalization
 """
 
 import pickle
@@ -20,6 +21,7 @@ import time
 from dataclasses import asdict
 from collections import defaultdict
 from datetime import datetime
+import streamlit as st
 
 # Shared modules
 from core_config import constants
@@ -237,7 +239,11 @@ class Orchestrator:
         logger.info(f"Processing recommendations for {user_id or 'anonymous user'}")
         
         try:
-            # Apply personalized weighting
+            # Check for Date Night Mode first
+            if self._is_date_night_active():
+                return self._get_date_night_recommendations(context)
+                
+            # Apply personalized weighting (normal mode)
             adjusted_weights = self._adjust_weights_for_user(user_id)
             self.pipeline.set_strategy_weights(adjusted_weights)
             
@@ -253,6 +259,69 @@ class Orchestrator:
         except Exception as e:
             logger.error(f"Recommendation generation failed: {str(e)}")
             return self._handle_failure(context)
+
+    def _is_date_night_active(self) -> bool:
+        """Safe check for date night mode"""
+        try:
+            return st.session_state.get('date_night_active', False)
+        except:
+            return False
+
+    def _get_date_night_recommendations(self, context: Dict) -> Tuple[List[Dict], Dict]:
+        """Special handling for Date Night Mode recommendations"""
+        try:
+            blended_prefs = st.session_state.get('blended_prefs', {})
+            if not blended_prefs:
+                logger.warning("Date Night Mode active but no blended preferences found - falling back to normal")
+                return self._get_normal_recommendations(context)
+                
+            logger.info("Generating Date Night Mode recommendations with blended preferences")
+            
+            # Create a modified context using blended preferences
+            date_night_context = {
+                **context,
+                'genres': blended_prefs.get('genres', []),
+                'mood': blended_prefs.get('primary_mood'),
+                'date_night': True,
+                'limit': context.get('limit', 20)  # Default to more recs for couples
+            }
+            
+            # Use base weights (no personalization) for date night
+            self.pipeline.set_strategy_weights(self.BASE_STRATEGY_WEIGHTS)
+            
+            # Execute pipeline with date night context
+            recommendations = self.pipeline.run(date_night_context)
+            recommendations_dict = [self._format_recommendation(rec) for rec in recommendations]
+            
+            # Generate metadata marking this as date night
+            metadata = self._generate_metadata(recommendations, date_night_context, None)
+            metadata['date_night'] = {
+                'active': True,
+                'blended_prefs': {
+                    'genres': blended_prefs.get('genres'),
+                    'mood': blended_prefs.get('primary_mood')
+                },
+                'original_packs': st.session_state.get('original_packs', {})
+            }
+            
+            return recommendations_dict, metadata
+            
+        except Exception as e:
+            logger.error(f"Date Night recommendation failed: {str(e)}")
+            # Fallback to normal recommendations if date night fails
+            return self._get_normal_recommendations(context)
+
+    def _get_normal_recommendations(self, context: Dict) -> Tuple[List[Dict], Dict]:
+        """Standard recommendation flow without Date Night Mode"""
+        user_id = context.get('user_id')
+        adjusted_weights = self._adjust_weights_for_user(user_id)
+        self.pipeline.set_strategy_weights(adjusted_weights)
+        
+        recommendations = self.pipeline.run(context)
+        recommendations_dict = [self._format_recommendation(rec) for rec in recommendations]
+        metadata = self._generate_metadata(recommendations, context, user_id)
+        
+        return recommendations_dict, metadata
 
     def _format_recommendation(self, recommendation: Recommendation) -> Dict:
         """Format recommendation with personalization context"""
@@ -350,6 +419,7 @@ try:
         - Watch history integration
         - Genre affinity modeling
         - Dynamic personalization
+        - Date Night Mode support
     """)
 except Exception as e:
     logger.critical(f"Orchestrator initialization failed: {str(e)}")

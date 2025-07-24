@@ -70,3 +70,79 @@
 .watchlist-movie-card:hover {
     transform: scale(1.05);
 }
+/* Mood Chip Styles */
+.mood-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    margin: 2px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: var(--mood-color);
+    color: var(--mood-text-color);
+    border: 1px solid rgba(0,0,0,0.1);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.mood-chip:hover {
+    background-color: var(--mood-hover-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.mood-chip.selected {
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.2);
+    font-weight: bold;
+}
+
+.mood-chip.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.mood-emoji {
+    margin-right: 4px;
+    font-size: 1.1em;
+}
+
+.tooltip-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip-wrapper .tooltip {
+    visibility: hidden;
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+
+.tooltip-wrapper:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Pulse animation for max selections */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.pulse-animation {
+    animation: pulse 1.5s infinite;
+}

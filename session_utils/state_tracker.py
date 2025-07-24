@@ -3,7 +3,8 @@ import streamlit as st
 from pathlib import Path
 from typing import Dict, Any, List,Union
 from dataclasses import dataclass
-
+from datetime import datetime
+from session_utils.date_session_logger import DateSessionLogger
 @dataclass
 class UserPreferences:
     """Structured user preferences with safe defaults"""
@@ -158,3 +159,90 @@ def update_watchlist(item: Union[int, Dict], remove: bool = False) -> None:
             st.session_state.watchlist.append(item)
         else:
             st.session_state.watchlist.append({'id': movie_id})
+
+def get_date_night_status() -> Dict[str, Any]:
+    """
+    Returns complete date night status including:
+    - Active state
+    - Blended preferences
+    - Original packs
+    - Session metadata
+    """
+    return {
+        "is_active": st.session_state.get("date_night_active", False),
+        "blended_prefs": st.session_state.get("blended_prefs", {}),
+        "original_packs": st.session_state.get("original_packs", {}),
+        "session_id": st.session_state.get("date_night_id"),
+        "initiated_at": st.session_state.get("date_night_initiated")
+    }
+
+def end_date_night() -> None:
+    """Cleans up date night mode and returns to normal preferences"""
+    if st.session_state.get("date_night_active"):
+        # Get session info before clearing
+        session_info = get_date_night_status()
+        
+        # Clear state
+        st.session_state.date_night_active = False
+        for key in ["blended_prefs", "original_packs", "date_night_id", "date_night_initiated"]:
+            st.session_state.pop(key, None)
+            
+        # UI feedback
+        packs = session_info.get("original_packs", {})
+        pack_names = [packs.get("pack_a", {}).get("name", "Pack A"), 
+                     packs.get("pack_b", {}).get("name", "Pack B")]
+        st.toast(f"Date Night ended ({' + '.join(pack_names)})", icon="🎬")
+
+def initiate_date_night(pack_a: Dict[str, Any], pack_b: Dict[str, Any]) -> Dict[str, Any]:
+    """Initialize Date Night mode with your movie-based packs"""
+    # Validate packs
+    REQUIRED_KEYS = {"movies", "moods"}  # Only require what you actually have
+    
+    for i, pack in enumerate([pack_a, pack_b], 1):
+        missing = [k for k in REQUIRED_KEYS if k not in pack]
+        if missing:
+            raise ValueError(f"Pack {i} missing: {', '.join(missing)}")
+        if not isinstance(pack["movies"], list):
+            raise ValueError(f"Pack {i} movies must be a list")
+        if not isinstance(pack["moods"], dict):
+            raise ValueError(f"Pack {i} moods must be a dictionary")
+
+    try:
+        from ai_smart_recommender.user_personalization.date_night_blender import (
+            blend_packs,
+            save_date_session
+        )
+        
+        # Blend using the modified function
+        blended_prefs = blend_packs(pack_a, pack_b)
+        
+        # Save session
+        session_id = save_date_session(pack_a, pack_b, blended_prefs)
+        
+        # Update session state
+        st.session_state.update({
+            "date_night_active": True,
+            "blended_prefs": blended_prefs,
+            "original_packs": {
+                "pack_a": pack_a,
+                "pack_b": pack_b
+            },
+            "date_night_id": session_id,
+            "date_night_initiated": datetime.now().isoformat()
+        })
+        
+        st.toast(f"Date Night started with {pack_a.get('name', 'Pack A')} + {pack_b.get('name', 'Pack B')}", icon="❤️")
+        return blended_prefs
+        
+    except Exception as e:
+        st.error(f"Failed to activate Date Night: {str(e)}")
+        raise
+    
+def is_date_night_active() -> bool:
+    """Check if date night mode is currently active"""
+    return st.session_state.get("date_night_active", False)
+def get_blended_prefs() -> Dict[str, Any]:
+    """Returns the current blended preferences if Date Night is active"""
+    if st.session_state.get("date_night_active", False):
+        return st.session_state.get("blended_prefs", {})
+    return {}
