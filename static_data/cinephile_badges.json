@@ -1,0 +1,103 @@
+{
+  "badges": [
+    {
+      "id": "criterion_initiate",
+      "name": "Criterion Initiate",
+      "description": "Watched 5 Criterion Collection films",
+      "icon": "🎞️",
+      "threshold": 5,
+      "tracking_field": "criterion_films_watched",
+      "unlock_message": "You've entered the realm of cinema preservation!",
+      "tier": "bronze"
+    },
+    {
+      "id": "criterion_connoisseur",
+      "name": "Criterion Connoisseur",
+      "description": "Watched 20 Criterion Collection films",
+      "icon": "🎥",
+      "threshold": 20,
+      "tracking_field": "criterion_films_watched",
+      "unlock_message": "A true patron of cinematic art!",
+      "tier": "silver"
+    },
+    {
+      "id": "foreign_film_explorer",
+      "name": "Foreign Film Explorer",
+      "description": "Watched 10 non-English language films",
+      "icon": "🌍",
+      "threshold": 10,
+      "tracking_field": "foreign_films_watched",
+      "unlock_message": "The world is your cinema!",
+      "tier": "bronze"
+    },
+    {
+      "id": "arthouse_aficionado",
+      "name": "Arthouse Aficionado",
+      "description": "Watched 15 films with critic score >85",
+      "icon": "🏛️",
+      "threshold": 15,
+      "tracking_field": "high_score_films_watched",
+      "unlock_message": "Your taste is as refined as a Cannes juror!",
+      "tier": "silver"
+    },
+    {
+      "id": "cinephile_elite",
+      "name": "Cinephile Elite",
+      "description": "Earned all bronze and silver badges",
+      "icon": "🏆",
+      "threshold": 4,
+      "tracking_field": "badges_earned",
+      "unlock_message": "You've ascended to the pantheon of film gods!",
+      "tier": "gold",
+      "composite": true
+    },
+    {
+      "id": "director_spotlight",
+      "name": "Director Spotlight",
+      "description": "Completed 3 films by the same auteur",
+      "icon": "👁️",
+      "threshold": 3,
+      "tracking_field": "director_completions",
+      "unlock_message": "You understand this filmmaker's vision!",
+      "tier": "bronze",
+      "dynamic": true
+    }
+  ],
+  "tracking_fields": {
+    "criterion_films_watched": {
+      "source": "watch_history",
+      "filter": {
+        "is_criterion": true
+      },
+      "increment": "view"
+    },
+    "foreign_films_watched": {
+      "source": "watch_history",
+      "filter": {
+        "original_language": {
+          "$not": "en"
+        }
+      },
+      "increment": "view"
+    },
+    "high_score_films_watched": {
+      "source": "watch_history",
+      "filter": {
+        "critic_score": {
+          "$gt": 85
+        }
+      },
+      "increment": "view"
+    },
+    "badges_earned": {
+      "source": "user_profile",
+      "field": "badge_count"
+    },
+    "director_completions": {
+      "source": "watch_history",
+      "group_by": "director_id",
+      "threshold": 3,
+      "increment": "view"
+    }
+  }
+}

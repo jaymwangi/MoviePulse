@@ -39,11 +39,17 @@ CRITIC_MODES = {
     "blockbuster_fan": {
         "label": "🍿 Blockbuster Fan", 
         "description": "Big-budget spectacles and popular hits"
+    },
+    "cinephile": {
+        "label": "🎞️ Cinephile Mode", 
+        "description": "Foreign, indie, and critically-acclaimed films",
+        "filters": {
+            "min_score": 85,
+            "foreign_only": True,
+            "criterion_only": False  # Can be toggled separately
+        }
     }
 }
-
-
-
 
 def _init_session_state():
     """Initialize session state with URL params or defaults"""
@@ -85,8 +91,10 @@ def _init_session_state():
             "year_filter_mode": "range" if not url_params.get("exact_year") else "exact",
             "rating_filter_mode": "range" if not url_params.get("exact_rating") else "exact",
             "popularity_filter_mode": "range" if not url_params.get("exact_popularity") else "exact",
-            "critic_mode": url_params.get("critic_mode", "default")
-            
+            "critic_mode": url_params.get("critic_mode", "default"),
+            "cinephile_foreign": False,
+            "cinephile_criterion": False,
+            "cinephile_min_score": 85
         })
 
 def _validate_current_state():
@@ -105,6 +113,8 @@ def _validate_current_state():
         if m in valid_mood_ids
     ]
     
+    # Validate cinephile filters
+    st.session_state.cinephile_min_score = max(60, min(st.session_state.cinephile_min_score, 100))
     
     # Validate year values
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
@@ -139,14 +149,6 @@ def _validate_current_state():
 def _sync_state_to_url():
     """Update URL parameters to reflect current filters"""
     params = {
-        # ... existing params ...
-        "critic_mode": st.session_state.critic_mode
-    }
-    st.query_params.update(**params)
-
-def _sync_state_to_url():
-    """Update URL parameters to reflect current filters"""
-    params = {
         "genres": ",".join(st.session_state.selected_genres),
         "moods": ",".join(map(str, st.session_state.selected_moods)),
         "year_min": str(st.session_state.year_range[0]),
@@ -154,8 +156,8 @@ def _sync_state_to_url():
         "rating_min": str(st.session_state.rating_range[0]),
         "rating_max": str(st.session_state.rating_range[1]),
         "popularity_min": str(st.session_state.popularity_range[0]),
-        "critic_mode": st.session_state.critic_mode,
-        "popularity_max": str(st.session_state.popularity_range[1])
+        "popularity_max": str(st.session_state.popularity_range[1]),
+        "critic_mode": st.session_state.critic_mode
     }
     
     if st.session_state.year_filter_mode == "exact" and st.session_state.exact_year:
@@ -181,11 +183,13 @@ def reset_filters():
         "year_filter_mode": "range",
         "rating_filter_mode": "range",
         "popularity_filter_mode": "range",
+        "cinephile_foreign": False,
+        "cinephile_criterion": False,
+        "cinephile_min_score": 85,
         "last_filter_change": datetime.now().timestamp()
     })
     _sync_state_to_url()
     st.toast("Filters reset to defaults", icon="♻️")
-
 
 def get_active_filters() -> Dict:
     """Returns current filters in API-ready format"""
@@ -194,7 +198,10 @@ def get_active_filters() -> Dict:
         "moods": st.session_state.selected_mood_names,
         "ready": _should_trigger_search(),
         "critic_mode": st.session_state.critic_mode,
-        "watchlist_active": st.session_state.get("watchlist_active", False)
+        "watchlist_active": st.session_state.get("watchlist_active", False),
+        "cinephile_foreign": st.session_state.get("cinephile_foreign", False),
+        "cinephile_criterion": st.session_state.get("cinephile_criterion", False),
+        "cinephile_min_score": st.session_state.get("cinephile_min_score", 85)
     }
     
     # Apply Date Night preferences if active
@@ -293,6 +300,48 @@ def render_sidebar_filters():
             except Exception as e:
                 st.warning("Couldn't load critic preferences")
                 st.session_state.critic_mode = "default"
+
+        # ---- CINEPHILE TOGGLES ----
+        if st.session_state.critic_mode == "cinephile":
+            with st.expander("**🎞️ Cinephile Filters**", expanded=True):
+                st.checkbox(
+                    "🌎 Foreign Films Only",
+                    key="cinephile_foreign",
+                    value=st.session_state.cinephile_foreign,
+                    help="Only show non-English language films",
+                    on_change=lambda: st.session_state.update({
+                        "last_filter_change": datetime.now().timestamp()
+                    })
+                )
+                
+                st.checkbox(
+                    "🏛 Criterion Collection",
+                    key="cinephile_criterion",
+                    value=st.session_state.cinephile_criterion,
+                    help="Focus on Criterion-approved films",
+                    on_change=lambda: st.session_state.update({
+                        "last_filter_change": datetime.now().timestamp()
+                    })
+                )
+                
+                st.slider(
+                    "⭐ Min Critic Score",
+                    min_value=60,
+                    max_value=100,
+                    value=st.session_state.cinephile_min_score,
+                    key="cinephile_min_score",
+                    help="Minimum Rotten Tomatoes score",
+                    on_change=lambda: st.session_state.update({
+                        "last_filter_change": datetime.now().timestamp()
+                    })
+                )
+                
+                if any([
+                    st.session_state.cinephile_foreign,
+                    st.session_state.cinephile_criterion,
+                    st.session_state.cinephile_min_score != 85
+                ]):
+                    st.session_state.last_filter_change = datetime.now().timestamp()
 
         # ---- DATE NIGHT MODE ----
         with st.expander("**💑 Date Night Mode**", expanded=False):
@@ -410,7 +459,6 @@ def render_sidebar_filters():
             if selected:
                 st.caption(f"📌 {len(selected)} selected")
 
-      
         # ---- MOOD SELECTOR ----
         with st.expander("**😊 Moods**", expanded=True):
             # Get all available moods from MoodManager
@@ -661,7 +709,8 @@ def render_sidebar_filters():
                         f"<div class='range-display'><b>📊 {popularity_range[0]} - {popularity_range[1]}</b></div>",
                         unsafe_allow_html=True
                     )
-          # ---- WATCHLIST TOGGLE ----
+
+        # ---- WATCHLIST TOGGLE ----
         st.markdown('<div class="watchlist-toggle">', unsafe_allow_html=True)
         watchlist_toggle = st.checkbox(
             "🌟 View My Watchlist",
@@ -698,7 +747,10 @@ def render_sidebar_filters():
                 len(st.session_state.selected_moods) > 0,
                 st.session_state.year_filter_mode == "exact" or st.session_state.year_range != DEFAULT_YEAR_RANGE,
                 st.session_state.rating_filter_mode == "exact" or st.session_state.rating_range != DEFAULT_RATING_RANGE,
-                st.session_state.popularity_filter_mode == "exact" or st.session_state.popularity_range != DEFAULT_POPULARITY_RANGE
+                st.session_state.popularity_filter_mode == "exact" or st.session_state.popularity_range != DEFAULT_POPULARITY_RANGE,
+                st.session_state.cinephile_foreign,
+                st.session_state.cinephile_criterion,
+                st.session_state.cinephile_min_score != 85
             ])
             st.markdown(f"""
             <div style="

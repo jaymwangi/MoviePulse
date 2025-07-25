@@ -2,25 +2,53 @@
   "packs": {
     "Feel Good": {
       "type": "starter_pack",
-      "movies": [19404, 10681, 8587, 10193, 441130, 508442],
+      "movies": [
+        {"id": 19404, "is_criterion": false},
+        {"id": 10681, "is_criterion": false},
+        {"id": 8587, "is_criterion": true},
+        {"id": 10193, "is_criterion": false},
+        {"id": 441130, "is_criterion": false},
+        {"id": 508442, "is_criterion": false}
+      ],
       "moods": {"happy": 0.8, "uplifting": 0.7, "lighthearted": 0.6},
       "compatible_with": ["Top Action", "Critic Picks"]
     },
     "Top Action": {
       "type": "starter_pack",
-      "movies": [245891, 280, 155, 1891, 1771, 335984],
+      "movies": [
+        {"id": 245891, "is_criterion": false},
+        {"id": 280, "is_criterion": false},
+        {"id": 155, "is_criterion": true},
+        {"id": 1891, "is_criterion": true},
+        {"id": 1771, "is_criterion": true},
+        {"id": 335984, "is_criterion": false}
+      ],
       "moods": {"exciting": 0.9, "adrenaline": 0.85, "intense": 0.75},
       "compatible_with": ["Feel Good", "Mind Bending"]
     },
     "Critic Picks": {
       "type": "starter_pack",
-      "movies": [13, 550, 680, 389, 238, 157336],
+      "movies": [
+        {"id": 13, "is_criterion": true},
+        {"id": 550, "is_criterion": false},
+        {"id": 680, "is_criterion": true},
+        {"id": 389, "is_criterion": true},
+        {"id": 238, "is_criterion": true},
+        {"id": 157336, "is_criterion": true}
+      ],
       "moods": {"thought-provoking": 0.8, "artistic": 0.75, "complex": 0.7},
       "compatible_with": ["Feel Good", "Mind Bending"]
     },
     "Mind Bending": {
       "type": "starter_pack",
-      "movies": [27205, 157336, 4922, 1124, 694, 114369],
+      "movies": [
+        {"id": 27205, "is_criterion": true},
+        {"id": 157336, "is_criterion": true},
+        {"id": 4922, "is_criterion": false},
+        {"id": 1124, "is_criterion": true},
+        {"id": 694, "is_criterion": false},
+        {"id": 114369, "is_criterion": false}
+      ],
       "moods": {"mind-bending": 0.9, "mysterious": 0.8, "psychological": 0.75},
       "compatible_with": ["Top Action", "Critic Picks"]
     }
