@@ -249,41 +249,50 @@ class TMDBClient:
         fallback_strategy: FallbackStrategy = FallbackStrategy.RELAX_GRADUAL,
         page: int = 1
     ) -> Tuple[List[Movie], int]:
-        """Search movies with complete performance breakdown."""
+        """Search movies with complete data for MovieTile."""
         search_start = time.perf_counter()
         logger.info(f"Starting search for '{query}' with filters: {filters}")
         
         try:
-            # Filter Processing
-            filter_start = time.perf_counter()
-            validated_filters = self._validate_filters(filters) if filters else None
-            params = self._build_search_params(query, validated_filters, page)
-            filter_duration = time.perf_counter() - filter_start
-
+            # Build search params
+            params = self._build_search_params(query, filters, page)
+            
             # API Request
             api_start = time.perf_counter()
             with st.spinner(f"Searching '{query}'..."):
-                data = self._make_request("search/movie", params)
+                search_data = self._make_request("search/movie", params)
             api_duration = time.perf_counter() - api_start
 
-            # Result Processing
+            # Process results with complete data
             processing_start = time.perf_counter()
-            if not data.get("results"):
-                if validated_filters and fallback_strategy != FallbackStrategy.NONE:
-                    result = self._handle_empty_results(
-                        query, params, validated_filters, fallback_strategy, page
-                    )
+            if not search_data.get("results"):
+                if filters and fallback_strategy != FallbackStrategy.NONE:
+                    result = self._handle_empty_results(query, params, filters, fallback_strategy, page)
                 else:
                     result = [], 0
             else:
-                movies = [self._parse_movie_result(m) for m in data["results"]]
-                result = movies, data.get("total_pages", 1)
+                movies = []
+                for m in search_data["results"]:
+                    try:
+                        # Get full details for each movie to ensure complete data
+                        movie_id = m["id"]
+                        movie_data = self._make_request(f"movie/{movie_id}", {
+                            "append_to_response": "credits",
+                            "language": "en-US"
+                        })
+                        movies.append(self._parse_movie_result(movie_data))
+                    except Exception as e:
+                        logger.warning(f"Failed to get full details for movie {m.get('id')}: {str(e)}")
+                        # Fallback to basic data if full details fail
+                        movies.append(self._parse_movie_result(m))
+                        
+                result = movies, search_data.get("total_pages", 1)
+                
             processing_duration = time.perf_counter() - processing_start
 
             total_duration = time.perf_counter() - search_start
             logger.info(
                 f"{PERF_LOG_PREFIX} Search completed in {total_duration:.4f}s | "
-                f"Filters: {filter_duration:.4f}s | "
                 f"API: {api_duration:.4f}s | "
                 f"Processing: {processing_duration:.4f}s | "
                 f"Results: {len(result[0])} movies"
@@ -353,112 +362,280 @@ class TMDBClient:
             )
             raise
         
-    def get_person_filmography(self, person_id: int) -> List[Movie]:
-        """Get complete filmography for a person with instrumentation"""
-        logger.info(f"Fetching filmography for person {person_id}")
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type(requests.exceptions.RequestException)
+    )
+    def get_person_filmography(
+        self, 
+        person_id: int,
+        role_type: str = "acting"  # "acting" or "directing"
+    ) -> List[Movie]:
+        """Get complete filmography for a person with instrumentation and fallback
+        
+        Args:
+            person_id: TMDB person ID
+            role_type: Type of roles to fetch ("acting" or "directing")
+            
+        Returns:
+            List of Movie objects
+        """
+        logger.info(f"Fetching {role_type} filmography for person {person_id}")
         fetch_start = time.perf_counter()
         
         try:
-            # Get both movie credits and TV credits
-            api_start = time.perf_counter()
-            data = self._make_request(
-                f"person/{person_id}/combined_credits",
-                {"language": "en-US"}
-            )
-            api_duration = time.perf_counter() - api_start
-            
-            # Process both movie and TV appearances
-            processing_start = time.perf_counter()
-            filmography = []
-            
-            # Process movie appearances
-            for credit in data.get("cast", []):
-                if credit.get("media_type") == "movie" and credit.get("id"):
-                    filmography.append(
-                        Movie(
-                            id=credit["id"],
-                            title=credit.get("title", "Untitled"),
-                            overview=credit.get("overview", ""),
-                            release_date=credit.get("release_date", ""),
-                            poster_path=credit.get("poster_path"),
-                            backdrop_path=credit.get("backdrop_path"),
-                            vote_average=credit.get("vote_average", 0),
-                            genres=[],  # Will be filled if full details are fetched
-                            cast=[]     # Will be filled if full details are fetched
-                        )
-                    )
-            
-            processing_duration = time.perf_counter() - processing_start
-            elapsed = time.perf_counter() - fetch_start
-            logger.info(
-                f"{PERF_LOG_PREFIX} Retrieved {len(filmography)} credits in {elapsed:.2f}s | "
-                f"API: {api_duration:.3f}s | "
-                f"Processing: {processing_duration:.3f}s"
-            )
-            return filmography
-            
+            # First try TMDB API
+            try:
+                api_start = time.perf_counter()
+                data = self._make_request(
+                    f"person/{person_id}/combined_credits",
+                    {"language": "en-US"}
+                )
+                api_duration = time.perf_counter() - api_start
+                
+                # Process based on role type
+                processing_start = time.perf_counter()
+                filmography = []
+                
+                if role_type == "directing":
+                    # Get directing credits from crew
+                    for credit in data.get("crew", []):
+                        if (credit.get("media_type") == "movie" and 
+                            credit.get("id") and 
+                            credit.get("job") == "Director"):
+                            filmography.append(
+                                Movie(
+                                    id=credit["id"],
+                                    title=credit.get("title", "Untitled"),
+                                    overview=credit.get("overview", ""),
+                                    release_date=credit.get("release_date", ""),
+                                    poster_path=credit.get("poster_path"),
+                                    backdrop_path=credit.get("backdrop_path"),
+                                    vote_average=credit.get("vote_average", 0),
+                                    genres=[],
+                                    cast=[]
+                                )
+                            )
+                else:  # Default to acting roles
+                    # Get acting credits from cast
+                    for credit in data.get("cast", []):
+                        if credit.get("media_type") == "movie" and credit.get("id"):
+                            filmography.append(
+                                Movie(
+                                    id=credit["id"],
+                                    title=credit.get("title", "Untitled"),
+                                    overview=credit.get("overview", ""),
+                                    release_date=credit.get("release_date", ""),
+                                    poster_path=credit.get("poster_path"),
+                                    backdrop_path=credit.get("backdrop_path"),
+                                    vote_average=credit.get("vote_average", 0),
+                                    genres=[],
+                                    cast=[]
+                                )
+                            )
+                
+                processing_duration = time.perf_counter() - processing_start
+                elapsed = time.perf_counter() - fetch_start
+                logger.info(
+                    f"{PERF_LOG_PREFIX} Retrieved {len(filmography)} {role_type} credits from API in {elapsed:.2f}s | "
+                    f"API: {api_duration:.3f}s | "
+                    f"Processing: {processing_duration:.3f}s"
+                )
+                return filmography
+                
+            except requests.exceptions.RequestException as api_error:
+                logger.warning(f"API request failed, falling back to local data: {str(api_error)}")
+                
+                # Fallback to local actors.json
+                local_start = time.perf_counter()
+                filmography = []
+                actors_file = Path("static_data/actors.json")
+                if actors_file.exists():
+                    with open(actors_file, "r") as f:
+                        actors_data = json.load(f)
+                        for actor in actors_data.get("actors", []):
+                            if actor["id"] == person_id:
+                                # Check if we should filter for directing roles
+                                if role_type == "directing":
+                                    # Only include if person is marked as director
+                                    if "Directing" not in actor.get("known_for_department", ""):
+                                        logger.debug(f"Person {person_id} not marked as director in local data")
+                                        return []
+                                
+                                for movie in actor.get("filmography", []):
+                                    filmography.append(
+                                        Movie(
+                                            id=movie["id"],
+                                            title=movie.get("title", "Untitled"),
+                                            overview="",  # Not available in local data
+                                            release_date=str(movie.get("year", "")) if movie.get("year") else "",
+                                            poster_path=movie.get("poster_path"),
+                                            backdrop_path=None,
+                                            vote_average=0,
+                                            genres=[],
+                                            cast=[]
+                                        )
+                                    )
+                                
+                                elapsed = time.perf_counter() - fetch_start
+                                local_duration = time.perf_counter() - local_start
+                                logger.info(
+                                    f"{PERF_LOG_PREFIX} Retrieved {len(filmography)} {role_type} credits from local file in {elapsed:.2f}s | "
+                                    f"Local: {local_duration:.3f}s"
+                                )
+                                return filmography
+                    
+                logger.warning(f"Person {person_id} not found in local data")
+                return []
+                
         except Exception as e:
             elapsed = time.perf_counter() - fetch_start
             logger.error(
-                f"{PERF_LOG_PREFIX} Failed to fetch filmography after {elapsed:.2f}s: {str(e)}"
+                f"{PERF_LOG_PREFIX} Failed to fetch {role_type} filmography after {elapsed:.2f}s: {str(e)}"
             )
-            raise
+            return []
 
-    def get_person_details(self, person_id: int) -> Person:
-        """Get detailed information about a person with instrumentation"""
-        logger.info(f"Fetching details for person {person_id}")
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type(requests.exceptions.RequestException)
+    )
+    def get_person_details(
+        self, 
+        person_id: int,
+        role_type: str = None  # Optional: "actor" or "director" for role-specific handling
+    ) -> Optional[Person]:
+        """Get detailed information about a person with instrumentation and fallback
+        
+        Args:
+            person_id: TMDB person ID
+            role_type: Optional role type ("actor" or "director") for specific handling
+            
+        Returns:
+            Person object or None if not found
+        """
+        logger.info(f"Fetching details for person {person_id}" + 
+                (f" (role: {role_type})" if role_type else ""))
         fetch_start = time.perf_counter()
         
         try:
-            api_start = time.perf_counter()
-            data = self._make_request(
-                f"person/{person_id}",
-                {"append_to_response": "combined_credits,external_ids"}
-            )
-            api_duration = time.perf_counter() - api_start
-            
-            processing_start = time.perf_counter()
-            person = Person(
-                id=data["id"],
-                name=data.get("name", "Unknown"),
-                role="Actor",  # Default role
-                profile_path=data.get("profile_path"),
-                known_for_department=data.get("known_for_department", "Acting")
-            )
-            processing_duration = time.perf_counter() - processing_start
-            
-            elapsed = time.perf_counter() - fetch_start
-            logger.info(
-                f"{PERF_LOG_PREFIX} Retrieved person details in {elapsed:.2f}s | "
-                f"API: {api_duration:.3f}s | "
-                f"Processing: {processing_duration:.3f}s"
-            )
-            return person
-            
+            # First try TMDB API
+            try:
+                api_start = time.perf_counter()
+                data = self._make_request(
+                    f"person/{person_id}",
+                    {"append_to_response": "combined_credits,external_ids"}
+                )
+                api_duration = time.perf_counter() - api_start
+                
+                processing_start = time.perf_counter()
+                
+                # Determine primary role
+                department = data.get("known_for_department", "Acting")
+                primary_role = "Director" if department == "Directing" else "Actor"
+                
+                # If role_type was specified, verify it matches
+                if role_type and role_type.lower() not in primary_role.lower():
+                    logger.warning(f"Person {person_id} is primarily a {primary_role}, not a {role_type}")
+                    return None
+                    
+                person = Person(
+                    id=data["id"],
+                    name=data.get("name", "Unknown"),
+                    role=primary_role,
+                    profile_path=data.get("profile_path"),
+                    known_for_department=department,
+                    # Additional fields can be added here as needed
+                )
+                
+                processing_duration = time.perf_counter() - processing_start
+                elapsed = time.perf_counter() - fetch_start
+                logger.info(
+                    f"{PERF_LOG_PREFIX} Retrieved person details from API in {elapsed:.2f}s | "
+                    f"API: {api_duration:.3f}s | "
+                    f"Processing: {processing_duration:.3f}s"
+                )
+                return person
+                
+            except requests.exceptions.RequestException as api_error:
+                logger.warning(f"API request failed, falling back to local data: {str(api_error)}")
+                
+                # Fallback to local actors.json
+                local_start = time.perf_counter()
+                actors_file = Path("static_data/actors.json")
+                if actors_file.exists():
+                    with open(actors_file, "r") as f:
+                        actors_data = json.load(f)
+                        for person_data in actors_data.get("actors", []):
+                            if person_data["id"] == person_id:
+                                # Check role type if specified
+                                if role_type:
+                                    known_for = person_data.get("known_for_department", "").lower()
+                                    if role_type.lower() == "director" and "directing" not in known_for:
+                                        logger.debug(f"Person {person_id} not marked as director in local data")
+                                        return None
+                                    elif role_type.lower() == "actor" and "acting" not in known_for:
+                                        logger.debug(f"Person {person_id} not marked as actor in local data")
+                                        return None
+                                
+                                person = Person(
+                                    id=person_data["id"],
+                                    name=person_data.get("name", "Unknown"),
+                                    role="Director" if "Directing" in person_data.get("known_for_department", "") else "Actor",
+                                    profile_path=person_data.get("profile_path"),
+                                    known_for_department=person_data.get("known_for_department", "Acting")
+                                )
+                                
+                                elapsed = time.perf_counter() - fetch_start
+                                local_duration = time.perf_counter() - local_start
+                                logger.info(
+                                    f"{PERF_LOG_PREFIX} Retrieved person details from local file in {elapsed:.2f}s | "
+                                    f"Local: {local_duration:.3f}s"
+                                )
+                                return person
+                    
+                logger.warning(f"Person {person_id} not found in local data")
+                return None
+                
         except Exception as e:
             elapsed = time.perf_counter() - fetch_start
             logger.error(
                 f"{PERF_LOG_PREFIX} Failed to fetch person details after {elapsed:.2f}s: {str(e)}"
             )
-            raise
+            return None
 
-    def get_movie_details(self, movie_id: int) -> Movie:
-        """Get movie details with detailed timing metrics."""
+    def get_movie_details(self, movie_id: int, include_extra: bool = True) -> Movie:
+        """Get complete movie details with all required metadata."""
         details_start = time.perf_counter()
         logger.info(f"Fetching details for movie ID: {movie_id}")
         
         try:
-            # API Request
+            # Always include credits to get runtime and genres if missing
+            append_to_response = ["credits"]
+            if include_extra:
+                append_to_response.extend(["similar", "videos"])
+            
+            # API Request with extended details
             api_start = time.perf_counter()
             data = self._make_request(
                 f"movie/{movie_id}",
-                {"append_to_response": "credits,similar,videos"}
+                {"append_to_response": ",".join(append_to_response), "language": "en-US"}
             )
             api_duration = time.perf_counter() - api_start
 
-            # Data Parsing
+            # Data Parsing with complete fallbacks
             parse_start = time.perf_counter()
-            movie = self._parse_movie_result(data, full_details=True)
+            movie = self._parse_movie_result(data, full_details=include_extra)
+            
+            # Fallback to get runtime from credits if missing
+            if not movie.runtime and data.get('credits', {}).get('crew'):
+                for crew_member in data['credits']['crew']:
+                    if crew_member.get('job') == 'Director' and 'movie_details' in crew_member:
+                        if 'runtime' in crew_member['movie_details']:
+                            movie.runtime = crew_member['movie_details']['runtime']
+                            break
+            
             parse_duration = time.perf_counter() - parse_start
 
             total_duration = time.perf_counter() - details_start
@@ -475,6 +652,7 @@ class TMDBClient:
             st.error(f"Failed to load movie details: {str(e)}")
             raise
 
+
     def get_genres(self) -> List[Genre]:
         """Get genre list with proper timeout handling"""
         try:
@@ -485,18 +663,7 @@ class TMDBClient:
             return []
         
     def get_trending_movies(self, time_window: str = "week", page: int = 1) -> Tuple[List[Movie], int]:
-        """Get trending movies with comprehensive performance tracking and error handling.
-        
-        Args:
-            time_window: Either "day" or "week" for trending period
-            page: Page number of results to fetch
-            
-        Returns:
-            Tuple of (movies_list, total_pages)
-            
-        Raises:
-            ValueError: If invalid time_window is provided
-        """
+        """Get trending movies with complete data including runtime."""
         trending_start = time.perf_counter()
         logger.info(f"Fetching trending movies for {time_window} (page {page})")
         
@@ -507,26 +674,36 @@ class TMDBClient:
             raise ValueError(error_msg)
         
         try:
-            # API Request with timing
+            # API Request for trending movies
             api_start = time.perf_counter()
             data = self._make_request(
                 f"trending/movie/{time_window}",
-                {"page": page, "language": "en-US"}  # Added language parameter
+                {"page": page, "language": "en-US"}
             )
             api_duration = time.perf_counter() - api_start
 
-            # Data Parsing with timing
-            parse_start = time.perf_counter()
+            # Process results with complete data
+            processing_start = time.perf_counter()
             movies = []
             for movie_data in data.get("results", []):
                 try:
-                    movies.append(self._parse_movie_result(movie_data))
-                except Exception as parse_error:
-                    logger.warning(f"Failed to parse movie {movie_data.get('id')}: {str(parse_error)}")
+                    # Get full details for each movie to ensure complete data
+                    movie_id = movie_data["id"]
+                    try:
+                        full_data = self._make_request(
+                            f"movie/{movie_id}",
+                            {"append_to_response": "credits", "language": "en-US"}
+                        )
+                        movies.append(self._parse_movie_result(full_data))
+                    except Exception as full_detail_error:
+                        logger.warning(f"Couldn't get full details for movie {movie_id}, using basic data: {str(full_detail_error)}")
+                        movies.append(self._parse_movie_result(movie_data))
+                except Exception as e:
+                    logger.warning(f"Failed to process trending movie {movie_data.get('id')}: {str(e)}")
                     continue
                     
             total_pages = min(data.get("total_pages", 1), 500)  # TMDB API limits to 500 pages
-            parse_duration = time.perf_counter() - parse_start
+            processing_duration = time.perf_counter() - processing_start
 
             # Log performance metrics
             total_duration = time.perf_counter() - trending_start
@@ -535,7 +712,7 @@ class TMDBClient:
                 f"Count: {len(movies)} | "
                 f"Total: {total_duration:.3f}s | "
                 f"API: {api_duration:.3f}s | "
-                f"Parse: {parse_duration:.3f}s"
+                f"Processing: {processing_duration:.3f}s"
             )
             
             return movies, total_pages
@@ -754,52 +931,81 @@ class TMDBClient:
             logger.debug(f"{PERF_LOG_PREFIX} Step generation took {elapsed:.6f}s")
 
     def _parse_movie_result(self, data: Dict, full_details: bool = False) -> Movie:
-        """Parse movie result with precise timing."""
+        """Parse movie result with complete data for MovieTile."""
         parse_start = time.perf_counter()
         try:
+            # Handle genres - ensure we always have a list of dicts with 'name' key
+            genres = []
+            if data.get("genres"):
+                genres = [{"id": g["id"], "name": g["name"]} for g in data["genres"]]
+            elif 'genre_ids' in data:
+                # For search results that only have genre IDs
+                all_genres = self.get_genres()
+                genre_map = {g.id: g.name for g in all_genres}
+                genres = [{"id": gid, "name": genre_map.get(gid, "Unknown")} 
+                        for gid in data.get("genre_ids", [])]
+            
+            # Handle runtime with proper fallbacks
+            runtime = data.get("runtime", 0)
+            if runtime == 0 and 'credits' in data and 'crew' in data['credits']:
+                for crew_member in data['credits']['crew']:
+                    if crew_member.get('job') == 'Director' and 'movie_details' in crew_member:
+                        runtime = crew_member['movie_details'].get('runtime', 0)
+                        if runtime > 0:
+                            break
+            
+            # Handle release date for upcoming movies
+            release_date = data.get("release_date", "")
+            if not release_date and data.get("status") == "Upcoming":
+                release_date = "Coming Soon"
+            
             movie = Movie(
                 id=data.get("id", 0),
                 title=data.get("title", "Untitled"),
-                overview=data.get("overview", ""),
-                release_date=data.get("release_date", ""),
-                poster_path=data.get("poster_path"),
-                backdrop_path=data.get("backdrop_path"),
+                overview=data.get("overview", "No description available"),
+                release_date=release_date,
+                poster_path=data.get("poster_path", ""),
+                backdrop_path=data.get("backdrop_path", ""),
                 vote_average=data.get("vote_average", 0),
-                runtime=data.get("runtime", 0) if full_details else None,
-                genres=[Genre(id=g["id"], name=g["name"]) for g in data.get("genres", [])],
+                runtime=runtime,
+                genres=genres,
                 directors=[
-                    Person(
-                        id=p["id"],
-                        name=p["name"],
-                        role="Director",
-                        known_for_department=p.get("known_for_department", "Directing")
-                    )
+                    {
+                        "id": p["id"],
+                        "name": p["name"],
+                        "role": "Director",
+                        "profile_path": p.get("profile_path"),
+                        "known_for_department": p.get("known_for_department", "Directing")
+                    }
                     for p in data.get("credits", {}).get("crew", [])
                     if p.get("job") == "Director"
                 ] if full_details else [],
                 cast=[
-                    Person(
-                        id=p["id"],
-                        name=p["name"],
-                        role=p.get("character", "Actor"),
-                        profile_path=p.get("profile_path"),
-                        known_for_department=p.get("known_for_department", "Acting")
-                    )
+                    {
+                        "id": p["id"],
+                        "name": p["name"],
+                        "role": p.get("character", "Actor"),
+                        "profile_path": p.get("profile_path"),
+                        "known_for_department": p.get("known_for_department", "Acting")
+                    }
                     for p in data.get("credits", {}).get("cast", [])[:10]
                 ] if full_details else [],
                 similar_movies=[
                     m["id"] for m in data.get("similar", {}).get("results", [])[:5]
                 ] if full_details else [],
                 videos=[
-                    Video(key=v["key"], type=v["type"], site=v["site"])
+                    {"key": v["key"], "type": v["type"], "site": v["site"]}
                     for v in data.get("videos", {}).get("results", [])
-                    if v["site"] == "YouTube" and v["type"] == "Trailer"
+                    if v["site"] == "YouTube" and v["type"] in ["Trailer", "Teaser"]
                 ] if full_details else []
             )
             
+            # Add raw data for debugging
+            movie.raw_data = data
             elapsed = time.perf_counter() - parse_start
             logger.debug(f"{PERF_LOG_PREFIX} Parsed movie in {elapsed:.6f}s")
             return movie
+            
         except Exception as e:
             elapsed = time.perf_counter() - parse_start
             logger.error(f"{PERF_LOG_PREFIX} Failed to parse movie after {elapsed:.6f}s: {str(e)}")
