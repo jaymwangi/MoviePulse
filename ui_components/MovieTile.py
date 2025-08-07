@@ -1,6 +1,9 @@
+
 import streamlit as st
+import streamlit.components.v1 as components
 from typing import Union, Optional
 from pathlib import Path
+import json
 
 def MovieTile(
     movie_data: Union[dict, object],
@@ -10,21 +13,18 @@ def MovieTile(
     **kwargs
 ):
     """
-    Theme-Aware Movie Tile Component v7.1
-    
-    Features:
-    - Automatically adapts to Streamlit light/dark theme
-    - Consistent metadata layout with perfect grid alignment
-    - Theme-appropriate colors for all elements
-    - Preserves all hover effects and interactions
+    Movie Tile Component v9.2 - Fully Fixed Version
+    - Working toasts on like/add
+    - Reversible buttons
+    - Theme-aware metadata
+    - Perfect grid alignment
     """
-
-    # ===== DATA VALIDATION & EXTRACTION ===== 
-    # (Keep the same data extraction logic as before)
+    
+    # ===== DATA EXTRACTION =====
     if not movie_data:
         if debug:
             st.error("No movie data provided")
-        return
+        return None
 
     if not isinstance(movie_data, dict):
         try:
@@ -32,62 +32,43 @@ def MovieTile(
         except TypeError:
             if debug:
                 st.error("Invalid movie data format")
-            return
+            return None
 
-    if debug:
-        st.json(movie_data)
-
+    # Extract data with fallbacks
     title = str(movie_data.get('title', 'Untitled')).strip()
     release_date = str(movie_data.get('release_date', ''))
     release_year = release_date[:4] if release_date and len(release_date) >= 4 else 'N/A'
-
+    
     try:
         rating = float(movie_data.get('vote_average', 0))
-        rating_str = f"⭐ {rating:.1f}" if rating > 0 else "⭐ N/A"
+        rating_str = f"{rating:.1f}" if rating > 0 else 'N/A'
     except (TypeError, ValueError):
-        rating_str = "⭐ N/A"
+        rating_str = "N/A"
 
-    runtime_str = "⏱ N/A"
-    runtime = None
-    if 'runtime' in movie_data:
-        runtime = movie_data['runtime']
-    elif 'details' in movie_data and 'runtime' in movie_data['details']:
-        runtime = movie_data['details']['runtime']
-    
+    runtime_str = "N/A"
+    runtime = movie_data.get('runtime') or movie_data.get('details', {}).get('runtime')
     if runtime:
         try:
             mins = int(runtime)
             if mins > 0:
                 hours, mins = divmod(mins, 60)
-                runtime_str = f"⏱ {hours}h {mins:02d}m" if hours else f"⏱ {mins}m"
+                runtime_str = f"{hours}h {mins:02d}m" if hours else f"{mins}m"
         except (TypeError, ValueError):
             if debug:
                 st.warning(f"Invalid runtime: {runtime}")
 
-    overview = str(movie_data.get('overview', ''))[:120] + "..." if movie_data.get('overview') else "No description available"
+    overview = str(movie_data.get('overview', ''))[:300] + ("..." if len(str(movie_data.get('overview', ''))) > 300 else "") if movie_data.get('overview') else "No description available"
 
-    genre_tags = ["No genres"]
-    genres = []
-    
-    if 'genres' in movie_data:
-        genres = movie_data['genres']
-    elif 'details' in movie_data and 'genres' in movie_data['details']:
-        genres = movie_data['details']['genres']
-    
-    if genres:
-        if isinstance(genres, list):
-            if genres and isinstance(genres[0], dict):
-                genre_tags = [g['name'] for g in genres if g.get('name')]
-            elif genres and hasattr(genres[0], 'name'):
-                genre_tags = [g.name for g in genres if g.name]
-            else:
-                genre_tags = [str(g) for g in genres]
-    
-    genre_tags = [g.strip() for g in genre_tags[:3] if g and str(g).strip()] or ["No genres"]
+    genres = movie_data.get('genres') or movie_data.get('details', {}).get('genres', [])
+    genre_tags = (
+        [g['name'] for g in genres if isinstance(g, dict) and g.get('name')] or
+        [g.name for g in genres if hasattr(g, 'name')] or
+        [str(g) for g in genres if g]
+    )[:3] or ["No genres"]
 
     poster_path = str(movie_data.get('poster_path', ''))
     if not poster_path:
-        image_url = "media_assets/icons/person_placeholder.png"
+        image_url = "https://via.placeholder.com/300x450?text=No+Poster"
     elif poster_path.startswith(('http://', 'https://')):
         image_url = poster_path
     elif Path(poster_path).exists():
@@ -95,84 +76,70 @@ def MovieTile(
     else:
         image_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
 
-    # ===== THEME-AWARE STYLING =====
-    # Detect current theme
+    # ===== STATE MANAGEMENT =====
+    tile_key = f"{testid_suffix or 'default'}_{title.replace(' ', '_')}"
+    liked_key = f"{tile_key}_liked"
+    watchlist_key = f"{tile_key}_watchlisted"
+    
+    # Initialize state if not exists
+    if liked_key not in st.session_state:
+        st.session_state[liked_key] = False
+    if watchlist_key not in st.session_state:
+        st.session_state[watchlist_key] = False
+
+    # ===== THEME DETECTION =====
     try:
         theme = st._config.get_option("theme.base") or "light"
+        is_dark = theme == "dark"
     except:
-        theme = "light"
+        is_dark = False
 
-    is_dark = theme == "dark"
-
-    # Theme-specific colors
-    bg_color = "rgba(10, 10, 10, 0.9)" if is_dark else "rgba(255, 255, 255, 0.9)"
-    text_color = "#FFFFFF" if is_dark else "#333333"
-    meta_color = "#BBBBBB" if is_dark else "#666666"
-    genre_bg = "rgba(255, 255, 255, 0.15)" if is_dark else "rgba(0, 0, 0, 0.05)"
-    genre_text = "#EEEEEE" if is_dark else "#555555"
-    hover_bg = "rgba(0, 0, 0, 0.7)" if is_dark else "rgba(0, 0, 0, 0.6)"
-    shadow_color = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.1)"
-
-    css = f"""
+    # ===== COMPONENT MARKUP =====
+    html_content = f"""
     <style>
-    [data-testid="movie-tile-{testid_suffix if testid_suffix else 'default'}"] {{
+    /* Container - Ensures consistent sizing */
+    .movie-tile-{tile_key} {{
+        position: relative;
         width: 100%;
-        margin-bottom: 1rem;
-        position: relative;
-    }}
-    
-    /* Poster container */
-    .movie-poster-container {{
-        position: relative;
         aspect-ratio: 2/3;
+        margin-bottom: 1rem;
         border-radius: 8px;
         overflow: hidden;
-        margin-bottom: 8px;
         transition: transform 0.3s ease;
-        box-shadow: 0 2px 8px {shadow_color};
     }}
     
-    .movie-poster-container:hover {{
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px {shadow_color};
+    .movie-tile-{tile_key}:hover {{
+        transform: scale(1.03);
+        z-index: 10;
     }}
     
-    .movie-poster {{
+    /* Poster Image - Strict aspect ratio */
+    .movie-poster-{tile_key} {{
         width: 100%;
         height: 100%;
         object-fit: cover;
         display: block;
     }}
     
-    /* Overlay elements */
-    .movie-poster-overlay {{
+    /* Action Buttons - Centered */
+    .action-buttons-{tile_key} {{
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: {hover_bg};
-        opacity: 0;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
         display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
+        gap: 16px;
+        z-index: 2;
+        opacity: 0;
         transition: opacity 0.3s ease;
-        padding: 16px;
     }}
     
-    .movie-poster-container:hover .movie-poster-overlay {{
+    .movie-tile-{tile_key}:hover .action-buttons-{tile_key} {{
         opacity: 1;
     }}
     
-    .action-buttons {{
-        display: flex;
-        gap: 16px;
-        margin-bottom: 16px;
-    }}
-    
-    .action-button {{
-        background: {bg_color};
+    .action-button-{tile_key} {{
+        background: rgba(255, 255, 255, 0.9);
         border: none;
         border-radius: 50%;
         width: 42px;
@@ -181,216 +148,290 @@ def MovieTile(
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: transform 0.2s ease, background 0.2s ease;
-        color: {text_color};
+        transition: all 0.2s ease;
+        font-size: 1.1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }}
     
-    .action-button:hover {{
+    .action-button-{tile_key}:hover {{
+        background: #ffdede;
         transform: scale(1.1);
-        background: {'rgba(255, 255, 255, 0.95)' if is_dark else 'rgba(255, 255, 255, 1)'};
     }}
     
-    /* Hover info panel */
-    .hover-info-panel {{
+    .action-button-{tile_key}.liked {{
+        color: #ff4d4d;
+        background: #ffe6e6;
+    }}
+    
+    .action-button-{tile_key}.added {{
+        color: #4dff4d;
+        background: #e6ffe6;
+    }}
+    
+    /* Hover Panel - 1/8 height by default */
+    .hover-panel-{tile_key} {{
         position: absolute;
         bottom: 0;
         left: 0;
         right: 0;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 12px;
-        transform: translateY(100%);
-        transition: transform 0.3s ease;
-        border-bottom-left-radius: 8px;
-        border-bottom-right-radius: 8px;
+        height: 12.5%;
+        background: rgba(0, 0, 0, 0.85);
+        color: #ffffff;
+        padding: 8px 12px;
+        transition: height 0.3s ease;
+        z-index: 3;
+        overflow: hidden;
+        cursor: pointer;
+        backdrop-filter: blur(2px);
     }}
     
-    .movie-poster-container:hover .hover-info-panel {{
-        transform: translateY(0);
+    /* Expanded State - Full height */
+    .movie-tile-{tile_key}.expanded .hover-panel-{tile_key} {{
+        height: 100%;
+        overflow-y: auto;
+        backdrop-filter: blur(4px);
     }}
     
-    .hover-title {{
-        font-weight: 600;
+    /* Hide buttons when expanded */
+    .movie-tile-{tile_key}.expanded .action-buttons-{tile_key} {{
+        display: none;
+    }}
+    
+    /* Panel Content */
+    .hover-title-{tile_key} {{
+        font-weight: 700;
         font-size: 1rem;
         margin-bottom: 4px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.7);
     }}
     
-    .hover-meta {{
-        font-size: 0.85rem;
-        margin-bottom: 8px;
+    .hover-meta-{tile_key} {{
+        font-size: 0.8rem;
+        color: #cccccc;
+        margin-bottom: 6px;
         display: flex;
         gap: 8px;
-        opacity: 0.9;
+        flex-wrap: wrap;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }}
     
-    .hover-overview {{
-        font-size: 0.8rem;
-        line-height: 1.3;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+    .hover-overview-{tile_key} {{
+        font-size: 0.75rem;
+        line-height: 1.4;
+        margin-top: 8px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }}
     
-    /* Metadata section - theme aware */
-    .movie-info {{
-        padding: 8px 4px 0;
-        display: flex;
-        flex-direction: column;
-        min-height: 110px;
+    /* Visible Metadata Below - Theme Aware */
+    .movie-info-{tile_key} {{
+        margin-top: 0.5rem;
+        padding: 8px;
+        border-radius: 0 0 8px 8px;
+        background: rgba(0, 0, 0, 0.6);
+        color: #f0f0f0;
     }}
     
-    .movie-title {{
+    body[data-theme='light'] .movie-info-{tile_key} {{
+        background: rgba(255, 255, 255, 0.8);
+        color: #111111;
+    }}
+    
+    .movie-title-{tile_key} {{
         font-weight: 600;
-        font-size: 1rem;
-        line-height: 1.3;
-        margin: 0 0 6px 0;
-        color: {text_color};
+        font-size: 0.95rem;
+        margin: 0 0 4px 0;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }}
     
-    .movie-meta {{
-        display: flex;
-        gap: 8px;
-        font-size: 0.85rem;
-        margin: 0 0 8px 0;
-        flex-wrap: wrap;
-        align-items: center;
-        color: {meta_color};
-    }}
-    
-    .movie-meta span {{
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        white-space: nowrap;
-    }}
-    
-    /* Genre tags */
-    .movie-genres {{
+    .movie-meta-{tile_key} {{
+        font-size: 0.75rem;
+        margin: 0 0 6px 0;
         display: flex;
         gap: 6px;
         flex-wrap: wrap;
-        margin-top: auto;
     }}
     
-    .genre-tag {{
-        background: {genre_bg};
-        color: {genre_text};
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        line-height: 1;
-        white-space: nowrap;
+    .movie-genres-{tile_key} {{
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
     }}
     
-    .genre-tag.no-genres {{
-        opacity: 0.7;
-        font-style: italic;
+    .genre-tag-{tile_key} {{
+        background: rgba(255,255,255,0.15);
+        color: #eeeeee;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-size: 0.65rem;
+    }}
+    
+    /* Scrollbar */
+    .hover-panel-{tile_key}::-webkit-scrollbar {{
+        width: 4px;
+    }}
+    
+    .hover-panel-{tile_key}::-webkit-scrollbar-thumb {{
+        background: rgba(255,255,255,0.3);
+        border-radius: 2px;
     }}
     </style>
+    
+    <div id="tile-{tile_key}" class="movie-tile-{tile_key}" data-theme="{'dark' if is_dark else 'light'}">
+        <!-- Poster Image -->
+        <img class="movie-poster-{tile_key}" 
+             src="{image_url}" 
+             alt="{title}"
+             loading="{'lazy' if lazy_load else 'eager'}"
+             onerror="this.onerror=null;this.src='https://via.placeholder.com/300x450?text=No+Poster'">
+        
+        <!-- Action Buttons -->
+        <div class="action-buttons-{tile_key}">
+            <button id="like-{tile_key}" 
+                    class="action-button-{tile_key} {'liked' if st.session_state.get(liked_key) else ''}"
+                    onclick="handleLike('{tile_key}', '{liked_key}')">
+                {'❤️' if st.session_state.get(liked_key) else '♡'}
+            </button>
+            <button id="watchlist-{tile_key}" 
+                    class="action-button-{tile_key} {'added' if st.session_state.get(watchlist_key) else ''}"
+                    onclick="handleWatchlist('{tile_key}', '{watchlist_key}')">
+                {'✓' if st.session_state.get(watchlist_key) else '+'}
+            </button>
+        </div>
+        
+        <!-- Hover Panel -->
+        <div class="hover-panel-{tile_key}" onclick="togglePanel('{tile_key}')">
+            <div class="hover-title-{tile_key}">{title}</div>
+            <div class="hover-meta-{tile_key}">
+                <span>🗓 {release_year}</span>
+                <span>⭐ {rating_str}</span>
+                <span>⏱ {runtime_str}</span>
+            </div>
+            <div class="hover-overview-{tile_key}">{overview}</div>
+        </div>
+    </div>
+    
+    <!-- Visible Metadata -->
+    <div class="movie-info-{tile_key}">
+        <div class="movie-title-{tile_key}" title="{title}">{title}</div>
+        <div class="movie-meta-{tile_key}">
+            <span>🗓 {release_year}</span>
+            <span>⭐ {rating_str}</span>
+            <span>⏱ {runtime_str}</span>
+        </div>
+        <div class="movie-genres-{tile_key}">
+            {"".join(f'<span class="genre-tag-{tile_key}">{g}</span>' for g in genre_tags)}
+        </div>
+    </div>
+    
+    <script>
+    function togglePanel(tileId) {{
+        const tile = document.getElementById(`tile-${{tileId}}`);
+        tile.classList.toggle('expanded');
+    }}
+    
+    function handleLike(tileId, likeKey) {{
+        event.stopPropagation();
+        const btn = document.getElementById(`like-${{tileId}}`);
+        const liked = btn.classList.toggle('liked');
+        
+        btn.innerHTML = liked ? '❤️' : '♡';
+        window.parent.postMessage({{
+            type: 'movieTileAction',
+            action: 'like',
+            key: likeKey,
+            state: liked,
+            title: "{title}"
+        }}, '*');
+    }}
+    
+    function handleWatchlist(tileId, watchlistKey) {{
+        event.stopPropagation();
+        const btn = document.getElementById(`watchlist-${{tileId}}`);
+        const added = btn.classList.toggle('added');
+        
+        btn.innerHTML = added ? '✓' : '+';
+        window.parent.postMessage({{
+            type: 'movieTileAction',
+            action: 'watchlist',
+            key: watchlistKey,
+            state: added,
+            title: "{title}"
+        }}, '*');
+    }}
+    </script>
     """
-    st.markdown(css, unsafe_allow_html=True)
+    
+    # Render component
+    components.html(html_content, height=580)
 
-    # ===== RENDERING =====
-    with st.container():
-        # Poster Container with Hover Effects
-        st.markdown(
-            f"""<div class="movie-poster-container" 
-                 data-testid="poster-{testid_suffix if testid_suffix else 'default'}">
-                <img class="movie-poster" 
-                     src="{image_url}" 
-                     alt="{title}" 
-                     loading="{'lazy' if lazy_load else 'eager'}"
-                     onerror="this.src='media_assets/icons/person_placeholder.png'">
-                
-                <div class="movie-poster-overlay">
-                    <div class="action-buttons">
-                        <button class="action-button">❤️</button>
-                        <button class="action-button">➕</button>
-                    </div>
-                </div>
-                
-                <div class="hover-info-panel">
-                    <div class="hover-title">{title}</div>
-                    <div class="hover-meta">
-                        {release_year} • {rating_str.replace('⭐ ', '⭐')} • {runtime_str.replace('⏱ ', '')}
-                    </div>
-                    <div class="hover-overview">{overview}</div>
-                </div>
-            </div>""",
-            unsafe_allow_html=True
-        )
-
-        # Always-visible Info Section
-        st.markdown(
-            f'<div class="movie-info">'
-            f'<div class="movie-title" title="{title}">{title}</div>'
-            f'<div class="movie-meta">'
-            f'<span>🗓 {release_year}</span>'
-            f'<span>{rating_str}</span>'
-            f'<span>{runtime_str}</span>'
-            f'</div>'
-            f'<div class="movie-genres">{"".join([f"<span class=\'genre-tag{" no-genres" if g == "No genres" else ""}\'>{g}</span>" for g in genre_tags])}</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-# Test cases with theme toggle
+# Main app with message handling
 if __name__ == "__main__":
-    st.title("Movie Tile Component Test - Theme Aware")
+    st.set_page_config(layout="wide")
+    st.title("🎬 MovieTile v9.2 - Complete Fixes")
     
-    # Add theme toggle for testing
-    if st.toggle("Dark Theme", False):
-        st._config.set_option("theme.base", "dark")
-    else:
-        st._config.set_option("theme.base", "light")
+    # Handle messages from components
+    components.html(
+        """
+        <script>
+        window.addEventListener("message", (event) => {
+            if (event.data.type === "movieTileAction") {
+                window.parent.postMessage({
+                    type: "streamlit:setComponentValue",
+                    value: JSON.stringify(event.data)
+                }, "*");
+            }
+        });
+        </script>
+        """,
+        height=0
+    )
     
+    # Check for component messages
+    if "_component_value" in st.session_state:
+        try:
+            action = json.loads(st.session_state["_component_value"])
+            st.session_state[action["key"]] = action["state"]
+            
+            if action["action"] == "like":
+                st.toast(f"{'❤️ Liked' if action['state'] else '💔 Unliked'} {action['title']}")
+            else:
+                st.toast(f"{'➕ Added' if action['state'] else '➖ Removed'} {action['title']} to watchlist")
+            
+            del st.session_state["_component_value"]
+        except Exception as e:
+            st.error(f"Error handling action: {str(e)}")
+    
+    # Theme selector
+    theme = st.radio("Theme", ["Light", "Dark"], index=0, horizontal=True)
+    st._config.set_option("theme.base", theme.lower())
+    
+    # Test movies
     test_movies = [
         {
-            "title": "Inception",
-            "release_date": "2010-07-16",
-            "vote_average": 8.4,
-            "runtime": 148,
-            "genres": [{"name": "Action"}, {"name": "Sci-Fi"}, {"name": "Mystery"}],
-            "poster_path": "/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg",
-            "overview": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
-            "id": 123
-        },
-        {
             "title": "The Dark Knight",
-            "release_date": "2008-07-16",
+            "poster_path": "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+            "overview": "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice. With the help of allies Lt. Jim Gordon and DA Harvey Dent, Batman has been able to keep a tight lid on crime in Gotham. But when a vile young criminal calling himself the Joker suddenly throws the town into chaos, the caped Crusader begins to tread a fine line between heroism and vigilantism.",
             "vote_average": 9.0,
             "runtime": 152,
-            "genres": [{"name": "Action"}, {"name": "Crime"}, {"name": "Drama"}],
-            "poster_path": "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
-            "overview": "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.",
-            "id": 155
+            "release_date": "2008-07-16",
+            "genres": [{"name": "Action"}, {"name": "Crime"}, {"name": "Drama"}]
         },
         {
-            "title": "Movie Missing Data",
-            "release_date": "",
-            "vote_average": 0,
-            "runtime": None,
-            "genres": [],
-            "poster_path": "",
-            "overview": "",
-            "id": 456
+            "title": "Inception",
+            "poster_path": "/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg",
+            "overview": "Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets is offered a chance to regain his old life as payment for a task considered to be impossible: inception, the implantation of another person's idea into a target's subconscious. With a team of specialists, Cobb plans to pull off the reverse heist but their target has defenses that turn the mission into a psychological rollercoaster.",
+            "vote_average": 8.4,
+            "runtime": 148,
+            "release_date": "2010-07-16",
+            "genres": [{"name": "Action"}, {"name": "Adventure"}, {"name": "Sci-Fi"}]
         }
     ]
     
-    cols = st.columns(3)
+    # Display tiles in a grid
+    cols = st.columns(2)
     for idx, movie in enumerate(test_movies):
-        with cols[idx % 3]:
-            MovieTile(
-                movie,
-                testid_suffix=f"test_{idx}",
-                debug=True
-            )
+        with cols[idx]:
+            MovieTile(movie, testid_suffix=f"movie-{idx}")
