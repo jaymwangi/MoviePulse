@@ -63,8 +63,16 @@ class RecommendationPipeline:
         """Add a weighted strategy to the fallback sequence with priority sorting"""
         if not isinstance(strategy, FallbackStrategy):
             raise ValueError("Fallback strategy must implement FallbackStrategy")
+        
+        # Same weight conversion logic
+        try:
+            weight = float(weight) if not isinstance(weight, (int, float)) else weight
+        except (ValueError, TypeError):
+            weight = 0.5
+            logger.warning(f"Invalid fallback weight, using default {weight}")
+        
         if weight <= 0:
-            raise ValueError("Strategy weight must be positive")
+            raise ValueError(f"Fallback weight must be positive (got: {weight})")
             
         self.fallback_strategies.append((strategy, weight))
         self.fallback_strategies.sort(key=lambda x: x[0].fallback_priority)
@@ -73,7 +81,6 @@ class RecommendationPipeline:
             f"(priority: {strategy.fallback_priority}, weight: {weight}, "
             f"total: {len(self.fallback_strategies)})"
         )
-
     def run(self, context: Dict) -> List[Recommendation]:
         """
         Execute the recommendation pipeline with the given context.

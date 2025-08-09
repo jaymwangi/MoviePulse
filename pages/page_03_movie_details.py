@@ -26,7 +26,7 @@ from core_config.constants import (
     MOODS_FILE
 )
 from streamlit.components.v1 import html
-from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import hybrid_recommender
+from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import recommender as hybrid_recommender
 from ai_smart_recommender.user_personalization.watch_history import WatchHistory
 
 # ----------------------- CSS LOADING -----------------------
@@ -432,7 +432,7 @@ def render_movie_details():
         
     except ValueError as e:
         st.error(str(e))
-        st.page_link("pages/Home.py", label="← Back to Home")
+        st.page_link("app.py", label="← Back to Home")
         log_page_view(movie_id, False, time.perf_counter() - view_start)
     except Exception as e:
         logger.error(f"Page render failed: {str(e)}", exc_info=True)

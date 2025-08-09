@@ -1,10 +1,11 @@
 # session_utils/state_tracker.py
 import streamlit as st
 from pathlib import Path
-from typing import Dict, Any, List,Union
+from typing import Dict, Any, List, Union, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from session_utils.date_session_logger import DateSessionLogger
+
 @dataclass
 class UserPreferences:
     """Structured user preferences with safe defaults"""
@@ -13,6 +14,16 @@ class UserPreferences:
     critic_persona: str = "balanced"  # [balanced, art_house, mainstream]
     accessibility_mode: bool = False
     dyslexia_font: bool = False
+
+@dataclass
+class NavigationState:
+    """Track navigation history and context"""
+    current_page: str = "home"
+    previous_page: Optional[str] = None
+    current_movie: Optional[int] = None
+    current_actor: Optional[int] = None
+    current_director: Optional[int] = None
+    search_query: Optional[str] = None
 
 def init_session_state(defaults: Dict[str, Any] = None) -> None:
     """
@@ -23,7 +34,7 @@ def init_session_state(defaults: Dict[str, Any] = None) -> None:
         "theme": "dark",
         "watchlist": [],
         "search_history": [],
-        "current_page": "home",
+        "navigation": NavigationState(),
         "user_prefs": UserPreferences(),
         "filters": {
             "genres": [],
@@ -113,6 +124,48 @@ def reset_user_prefs() -> None:
     _load_accessibility_css()  # Re-load in case accessibility was disabled
     st.toast("Preferences reset to defaults", icon="🔄")
 
+def clear_navigation_states(keep_history: bool = False) -> None:
+    """
+    Clear temporary navigation-related session states.
+    
+    Args:
+        keep_history: If True, preserves the previous_page value
+    """
+    if "navigation" not in st.session_state:
+        st.session_state.navigation = NavigationState()
+        return
+    
+    # Store previous page if needed
+    prev_page = st.session_state.navigation.previous_page if keep_history else None
+    
+    # Reset navigation state
+    st.session_state.navigation = NavigationState(
+        previous_page=prev_page,
+        current_page=st.session_state.navigation.current_page
+    )
+    
+    # Visual feedback if in an interactive context
+    if st.runtime.exists():
+        st.toast("Navigation context cleared", icon="🧹")
+
+def navigate_to(page: str) -> None:
+    """
+    Centralized page navigation with state management
+    
+    Args:
+        page: Target page identifier (e.g., 'home', 'search', 'movie_detail')
+    """
+    if "navigation" not in st.session_state:
+        st.session_state.navigation = NavigationState()
+    
+    # Update navigation history
+    st.session_state.navigation.previous_page = st.session_state.navigation.current_page
+    st.session_state.navigation.current_page = page
+    
+    # Clear transient states when switching major sections
+    if page.split('_')[0] != st.session_state.navigation.previous_page.split('_')[0]:
+        clear_navigation_states(keep_history=True)
+
 # ---------- Type-safe Getters ----------
 def get_watchlist() -> List[Dict]:
     return st.session_state.get("watchlist", [])
@@ -126,6 +179,12 @@ def get_active_filters() -> Dict:
 
 def get_user_prefs() -> UserPreferences:
     return st.session_state.get("user_prefs", UserPreferences())
+
+def get_navigation_state() -> NavigationState:
+    """Get current navigation context with type safety"""
+    if "navigation" not in st.session_state:
+        st.session_state.navigation = NavigationState()
+    return st.session_state.navigation
 
 def update_styles() -> None:
     """Public method to force CSS reload"""
@@ -241,8 +300,34 @@ def initiate_date_night(pack_a: Dict[str, Any], pack_b: Dict[str, Any]) -> Dict[
 def is_date_night_active() -> bool:
     """Check if date night mode is currently active"""
     return st.session_state.get("date_night_active", False)
+
 def get_blended_prefs() -> Dict[str, Any]:
     """Returns the current blended preferences if Date Night is active"""
     if st.session_state.get("date_night_active", False):
         return st.session_state.get("blended_prefs", {})
     return {}
+def get_current_director() -> Optional[Dict]:
+    """Get current director from navigation state with type safety"""
+    if "navigation" not in st.session_state:
+        return None
+    director_id = st.session_state.navigation.current_director
+    if not director_id:
+        return None
+    
+    # Return minimal director info if no full object is stored
+    return {
+        "id": director_id,
+        "name": st.session_state.get("current_director_name", "Unknown Director"),
+        "profile_path": st.session_state.get("current_director_profile_path")
+    }
+
+def set_current_director(director_id: int, name: str = None, profile_path: str = None) -> None:
+    """Set current director in navigation state"""
+    if "navigation" not in st.session_state:
+        st.session_state.navigation = NavigationState()
+    
+    st.session_state.navigation.current_director = director_id
+    if name:
+        st.session_state["current_director_name"] = name
+    if profile_path:
+        st.session_state["current_director_profile_path"] = profile_path

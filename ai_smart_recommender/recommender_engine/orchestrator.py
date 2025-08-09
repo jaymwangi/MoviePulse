@@ -8,12 +8,13 @@ Key Features:
 3. Date Night Mode with blended preferences from starter packs
 4. Comprehensive recommendation metadata with affinity insights
 5. Robust fallback system with cached personalization
+6. Strict input validation for strategy configuration
 """
 
 import pickle
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 import numpy as np
 import logging
 from functools import lru_cache, wraps
@@ -69,6 +70,13 @@ class Orchestrator:
         'mood_derivation_factor': 0.8,
         'content_reduction_factor': 0.9,
         'min_history_threshold': 5
+    }
+
+    VALID_STRATEGY_TYPES = {
+        'content_based': ContentBasedStrategy,
+        'genre_based': GenreRecommendationStrategy,
+        'mood_based': MoodRecommendationStrategy,
+        'actor_based': ActorSimilarityStrategy
     }
 
     def __init__(self):
@@ -128,51 +136,123 @@ class Orchestrator:
             "Romantic": [10749, 35, 18]
         }
 
+    def _validate_strategy_config(self, config: Dict) -> bool:
+        """Validate strategy configuration before creation"""
+        required_fields = ['type', 'weight']
+        
+        if not all(field in config for field in required_fields):
+            logger.error(f"Strategy config missing required fields: {required_fields}")
+            return False
+            
+        if config['type'] not in self.VALID_STRATEGY_TYPES:
+            logger.error(f"Invalid strategy type: {config['type']}. Valid types: {list(self.VALID_STRATEGY_TYPES.keys())}")
+            return False
+            
+        try:
+            weight = float(config['weight'])
+            if not (0 <= weight <= 2.0):  # Reasonable weight range
+                logger.error(f"Strategy weight {weight} out of bounds (0-2.0)")
+                return False
+        except ValueError:
+            logger.error(f"Invalid weight value: {config['weight']}")
+            return False
+            
+        return True
+
+    def _create_strategy(self, config: Dict) -> Any:
+        """Factory method for creating strategies with validation"""
+        if not self._validate_strategy_config(config):
+            raise ValueError(f"Invalid strategy configuration: {config}")
+            
+        strategy_type = config['type']
+        
+        try:
+            if strategy_type == 'content_based':
+                return ContentBasedStrategy(self.embeddings, logger)
+            elif strategy_type == 'genre_based':
+                return GenreRecommendationStrategy(self.genre_mappings, logger)
+            elif strategy_type == 'mood_based':
+                return MoodRecommendationStrategy(self.mood_genre_map, self.genre_mappings, logger)
+            elif strategy_type == 'actor_based':
+                return ActorSimilarityStrategy(self.actor_similarity, logger)
+        except Exception as e:
+            logger.error(f"Strategy creation failed for {strategy_type}: {str(e)}")
+            raise ValueError(f"Could not create strategy {strategy_type}")
+
     @timed
     def _build_pipeline(self) -> None:
-        """Construct the recommendation pipeline with strategies"""
+        """Construct the recommendation pipeline with validated strategies"""
         logger.info("Building recommendation pipeline...")
         
+        # Default strategies with validation
         strategies = [
-            (ContentBasedStrategy(self.embeddings, logger), 'content_based'),
-            (GenreRecommendationStrategy(self.genre_mappings, logger), 'genre_based'),
-            (MoodRecommendationStrategy(self.mood_genre_map, self.genre_mappings, logger), 'mood_based'),
-            (ActorSimilarityStrategy(self.actor_similarity, logger), 'actor_based')
+            {'type': 'content_based', 'weight': 1.0},
+            {'type': 'genre_based', 'weight': 0.9},
+            {'type': 'mood_based', 'weight': 0.85},
+            {'type': 'actor_based', 'weight': 0.8}
         ]
-
-        for strategy, strategy_name in strategies:
-            self.pipeline.add_primary_strategy(strategy, strategy_name)
+        
+        for strategy_config in strategies:
+            try:
+                strategy = self._create_strategy(strategy_config)
+                weight = float(strategy_config.get('weight', 1.0))
+                self.pipeline.add_primary_strategy(
+                    strategy, 
+                    weight=weight,
+                    strategy_name=strategy_config['type']
+                )
+            except (ValueError, KeyError) as e:
+                logger.error(f"Invalid strategy config {strategy_config}: {e}")
+                continue
+            except Exception as e:
+                logger.error(f"Failed to add strategy {strategy_config}: {e}")
+                continue
 
         self._setup_fallback_strategies()
 
     def _setup_fallback_strategies(self) -> None:
-        """Configure all fallback strategies"""
-        fallback_system = create_fallback_system(logger)
-        
-        for fallback in fallback_system:
-            self.pipeline.add_fallback_strategy(
-                fallback, 
-                strategy_name=fallback.strategy_name
-            )
+        """Configure all fallback strategies with validation"""
+        try:
+            fallback_system = create_fallback_system(logger)
+            
+            for fallback in fallback_system:
+                if not hasattr(fallback, 'strategy_name'):
+                    logger.error("Fallback strategy missing required attribute 'strategy_name'")
+                    continue
+                    
+                self.pipeline.add_fallback_strategy(
+                    fallback, 
+                    strategy_name=fallback.strategy_name
+                )
+        except Exception as e:
+            logger.error(f"Fallback strategy setup failed: {e}")
 
     @timed
     def _get_user_affinity(self, user_id: str) -> Dict[str, Any]:
         """Get cached user affinity data with automatic refresh"""
+        if not isinstance(user_id, str) or not user_id.strip():
+            logger.error("Invalid user_id provided")
+            return {}
+            
         if user_id in self._user_affinity_cache:
             return self._user_affinity_cache[user_id]
         
         # Generate fresh affinity data
-        self.watch_history.update_affinity(user_id)
-        pref_vector = self.affinity_model.build_preference_vector(user_id)
-        
-        affinity_data = {
-            'preference_vector': pref_vector,
-            'top_genres': self.affinity_model.get_top_genres(user_id),
-            'last_updated': datetime.now().isoformat()
-        }
-        
-        self._user_affinity_cache[user_id] = affinity_data
-        return affinity_data
+        try:
+            self.watch_history.update_affinity(user_id)
+            pref_vector = self.affinity_model.build_preference_vector(user_id)
+            
+            affinity_data = {
+                'preference_vector': pref_vector,
+                'top_genres': self.affinity_model.get_top_genres(user_id),
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            self._user_affinity_cache[user_id] = affinity_data
+            return affinity_data
+        except Exception as e:
+            logger.error(f"Failed to get user affinity for {user_id}: {e}")
+            return {}
 
     def _adjust_weights_for_user(self, user_id: Optional[str]) -> Dict[str, float]:
         """
@@ -235,6 +315,15 @@ class Orchestrator:
                 'limit': int
             }
         """
+        # Validate context
+        if not isinstance(context, dict):
+            logger.error("Invalid context: must be a dictionary")
+            return [], {"error": "Invalid context format"}
+            
+        if 'reference_movie' not in context:
+            logger.error("Missing required field 'reference_movie' in context")
+            return [], {"error": "Missing reference movie"}
+            
         user_id = context.get('user_id')
         logger.info(f"Processing recommendations for {user_id or 'anonymous user'}")
         
@@ -325,6 +414,10 @@ class Orchestrator:
 
     def _format_recommendation(self, recommendation: Recommendation) -> Dict:
         """Format recommendation with personalization context"""
+        if not isinstance(recommendation, Recommendation):
+            logger.error("Invalid recommendation type")
+            return {}
+            
         rec_dict = asdict(recommendation)
         rec_dict['score'] = rec_dict.get('score', 0) * self.BASE_STRATEGY_WEIGHTS.get(
             recommendation.source_strategy, 1.0
@@ -356,6 +449,9 @@ class Orchestrator:
     def _generate_metadata(self, recommendations: List[Recommendation],
                          context: Dict, user_id: Optional[str]) -> Dict:
         """Generate comprehensive metadata with personalization insights"""
+        if not isinstance(recommendations, list):
+            recommendations = []
+            
         strategy_counts = defaultdict(int)
         total_score = 0.0
         
@@ -411,7 +507,7 @@ class Orchestrator:
             }
         )
 
-# Singleton initialization
+# Singleton initialization with error handling
 try:
     recommendation_orchestrator = Orchestrator()
     logger.info("""
@@ -420,7 +516,12 @@ try:
         - Genre affinity modeling
         - Dynamic personalization
         - Date Night Mode support
+        - Strict input validation
     """)
 except Exception as e:
     logger.critical(f"Orchestrator initialization failed: {str(e)}")
     raise
+
+def build_pipeline() -> RecommendationPipeline:
+    """Public factory function to get the recommendation pipeline"""
+    return recommendation_orchestrator.pipeline

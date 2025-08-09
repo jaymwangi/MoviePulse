@@ -4,14 +4,13 @@ import os
 import requests
 import streamlit as st
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union, Any
 from ui_components.HeaderBar import render_app_header
 from ui_components.SidebarFilters import render_sidebar_filters
 from session_utils.state_tracker import init_session_state, get_active_filters
 from media_assets.styles import load_custom_css
-from service_clients.tmdb_client import tmdb_client, FallbackStrategy
+from service_clients.tmdb_client import tmdb_client, Movie, Genre, FallbackStrategy
 from ui_components.MovieGridView import MovieGridView
-from streamlit.components.v1 import html
 import time
 
 # ----------------------- LOGGING CONFIGURATION -----------------------
@@ -54,7 +53,7 @@ def log_user_action(action: str, metadata: Dict = None):
 
 # ----------------------- CACHED FUNCTIONS -----------------------
 @st.cache_data(ttl=600, show_spinner="Searching movies...")
-def cached_search(query: str, filters: Dict = None, page: int = 1) -> Tuple[List[Dict], int]:
+def cached_search(query: str, filters: Dict = None, page: int = 1) -> Tuple[List[Union[Movie, Dict]], int]:
     """Cache search results with comprehensive logging"""
     search_start = time.perf_counter()
     log_user_action("search_initiated", {"query": query, "page": page})
@@ -69,6 +68,15 @@ def cached_search(query: str, filters: Dict = None, page: int = 1) -> Tuple[List
             fallback_strategy=FallbackStrategy.RELAX_GRADUAL,
             page=page
         )
+        
+        # Log sample movie details for debugging
+        for movie in results[:3]:  # Just first 3 for sample
+            if isinstance(movie, Movie):
+                logger.debug(f"Movie sample - ID: {movie.id}, Title: {movie.title}, "
+                           f"Runtime: {movie.runtime}, Genres: {[g.name for g in movie.genres]}")
+            else:
+                logger.debug(f"Movie sample - ID: {movie.get('id')}, Title: {movie.get('title')}, "
+                           f"Runtime: {movie.get('runtime')}, Genres: {movie.get('genres', [])}")
         
         duration = time.perf_counter() - search_start
         log_api_call("search/movie", {"query": query, "page": page}, duration, True)
@@ -93,10 +101,46 @@ def get_cached_genres() -> List[Dict]:
     try:
         genres = tmdb_client.get_genres()
         logger.info(f"Successfully fetched {len(genres)} genres")
-        return genres
+        return [{"id": g.id, "name": g.name} for g in genres]
     except Exception as e:
         logger.error(f"Failed to fetch genres: {str(e)}", exc_info=True)
         return []
+
+def process_movie_data(movies_data: List[Union[Movie, Dict]]) -> List[Dict]:
+    """Convert Movie objects to dict format expected by MovieTile with proper runtime and genres"""
+    processed_movies = []
+    for movie in movies_data:
+        if isinstance(movie, Movie):
+            # Convert Movie object to dict format
+            movie_dict = {
+                'id': movie.id,
+                'title': movie.title,
+                'overview': movie.overview,
+                'release_date': movie.release_date,
+                'poster_path': movie.poster_path,
+                'backdrop_path': movie.backdrop_path,
+                'vote_average': movie.vote_average,
+                'runtime': movie.runtime,
+                'genres': [{'id': g.id, 'name': g.name} for g in movie.genres],
+                'directors': [{'id': d.id, 'name': d.name} for d in movie.directors],
+                'cast': [{'id': c.id, 'name': c.name} for c in movie.cast]
+            }
+            processed_movies.append(movie_dict)
+        else:
+            # Ensure dict has all required fields
+            movie.setdefault('runtime', None)
+            movie.setdefault('genres', [])
+            movie.setdefault('directors', [])
+            movie.setdefault('cast', [])
+            movie.setdefault('backdrop_path', None)
+            
+            # Convert genre objects if they exist but aren't in dict format
+            if movie['genres'] and not isinstance(movie['genres'][0], dict):
+                movie['genres'] = [{'id': 0, 'name': str(g)} for g in movie['genres']]
+            
+            processed_movies.append(movie)
+    
+    return processed_movies
 
 # ----------------------- PAGE COMPONENTS -----------------------
 def initialize_session() -> None:
@@ -230,6 +274,9 @@ def display_search_results() -> None:
                     st.rerun()
                 return
             
+            # Process movies to ensure proper format for MovieTile
+            processed_movies = process_movie_data(movies)
+            
             if total_pages > 1:
                 cols = st.columns([0.2, 0.6, 0.2])
                 with cols[0]:
@@ -245,7 +292,11 @@ def display_search_results() -> None:
                         st.session_state.current_page += 1
                         st.rerun()
             
-            MovieGridView(movies, columns=4)
+            # Use the processed movies data
+            MovieGridView.render(
+                movies_data=processed_movies,
+                columns=4
+            )
             
     except Exception as e:
         logger.error(f"Failed to display results for '{query}': {str(e)}", exc_info=True)

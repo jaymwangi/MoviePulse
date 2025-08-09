@@ -1,0 +1,76 @@
+{
+  "actors": [
+    {
+      "id": 1234,
+      "name": "Tom Hanks",
+      "profile_path": "/tHanksProfile.jpg",
+      "biography": "Two-time Academy Award winner Tom Hanks is one of Hollywood's most popular and recognizable stars, known for films like Forrest Gump, Cast Away, and Saving Private Ryan.",
+      "birthday": "1956-07-09",
+      "known_for_department": "Acting",
+      "filmography": [
+        {
+          "id": 13,
+          "title": "Forrest Gump",
+          "character": "Forrest Gump",
+          "poster_path": "/forrestGumpPoster.jpg",
+          "year": 1994
+        },
+        {
+          "id": 22,
+          "title": "Cast Away",
+          "character": "Chuck Noland",
+          "poster_path": "/castAwayPoster.jpg",
+          "year": 2000
+        }
+      ]
+    },
+    {
+      "id": 5678,
+      "name": "Meryl Streep",
+      "profile_path": "/streepProfile.jpg",
+      "biography": "Considered by many as the greatest living actress, Meryl Streep has won three Academy Awards and been nominated a record 21 times.",
+      "birthday": "1949-06-22",
+      "known_for_department": "Acting",
+      "filmography": [
+        {
+          "id": 35,
+          "title": "The Devil Wears Prada",
+          "character": "Miranda Priestly",
+          "poster_path": "/pradaPoster.jpg",
+          "year": 2006
+        },
+        {
+          "id": 41,
+          "title": "Mamma Mia!",
+          "character": "Donna Sheridan",
+          "poster_path": "/mammaMiaPoster.jpg",
+          "year": 2008
+        }
+      ]
+    },
+    {
+      "id": 9012,
+      "name": "Leonardo DiCaprio",
+      "profile_path": "/dicaprioProfile.jpg",
+      "biography": "Academy Award-winning actor and environmental activist known for his collaborations with Martin Scorsese and his role in Titanic.",
+      "birthday": "1974-11-11",
+      "known_for_department": "Acting",
+      "filmography": [
+        {
+          "id": 55,
+          "title": "Titanic",
+          "character": "Jack Dawson",
+          "poster_path": "/titanicPoster.jpg",
+          "year": 1997
+        },
+        {
+          "id": 62,
+          "title": "The Wolf of Wall Street",
+          "character": "Jordan Belfort",
+          "poster_path": "/wolfPoster.jpg",
+          "year": 2013
+        }
+      ]
+    }
+  ]
+}

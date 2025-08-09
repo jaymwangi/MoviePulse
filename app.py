@@ -57,6 +57,20 @@ def get_cached_genres():
         raise RuntimeError("TMDB client not available")
     return tmdb_client.get_genres()
 
+@st.cache_data(ttl=3600)
+def get_cached_actor_details(actor_id):
+    """Get actor details with caching"""
+    if not is_tmdb_available():
+        raise RuntimeError("TMDB client not available")
+    return tmdb_client.get_actor_details(actor_id)
+
+@st.cache_data(ttl=3600)
+def get_cached_director_filmography(director_id):
+    """Get director filmography with caching"""
+    if not is_tmdb_available():
+        raise RuntimeError("TMDB client not available")
+    return tmdb_client.get_director_filmography(director_id)
+
 # ----------------------- SETUP -----------------------
 def configure_page():
     """Initialize page settings with theme awareness"""
@@ -81,19 +95,22 @@ def configure_page():
         st.session_state.filter_execution_in_progress = False
     if 'global_search_query' not in st.session_state:
         st.session_state.global_search_query = ""
+    
+    # Clear stale actor/director session states on app load
+    for key in ['current_actor', 'current_director']:
+        if key in st.session_state:
+            del st.session_state[key]
 
 # ----------------------- STARTER PACK HANDLING -----------------------
 def check_first_time_user():
-    """Check if user needs starter pack selection"""
+    """Simplified first-time user check without starter pack selection"""
     from session_utils.watchlist_manager import load_watchlist
-    from session_utils.starter_packs import show_starter_pack_selector
     
     user_id = st.session_state.get("user_id", "anonymous")
     watchlist = load_watchlist().get(user_id, {}).get("movies", [])
     
-    if not watchlist and not st.session_state.starter_pack_selected:
-        show_starter_pack_selector()
-        st.stop()  # Prevent rest of app from loading until selection
+    if not watchlist:
+        st.session_state.starter_pack_selected = True  # Skip starter pack selection
 
 # ----------------------- MAIN CONTENT SECTIONS -----------------------
 
@@ -144,6 +161,7 @@ def render_search_bar():
                 """,
                 unsafe_allow_html=True
             )
+
 def render_search_results():
     """API-integrated results with enhanced filter support"""
     if not st.session_state.get("global_search_query"):
@@ -173,7 +191,7 @@ def render_search_results():
             # Search with hybrid filtering (using cached version)
             results, total_pages = cached_search(
                 query=st.session_state.global_search_query,
-                filters=filters,  # Use the filters we already got
+                filters=filters,
                 page=st.session_state.current_page
             )
             
@@ -208,7 +226,7 @@ def render_search_results():
                             st.session_state.current_page = page_select
                             st.rerun()
                 
-                MovieGridView(results, columns=4)
+                MovieGridView.render(results, columns=4)
 
         except Exception as e:
             cols = st.columns([0.3, 0.4, 0.3])
@@ -226,7 +244,7 @@ def render_trending_section():
     if not is_tmdb_available():
         show_service_unavailable()
         # Show fallback content only if it's not an auth issue
-        MovieGridView([
+        MovieGridView.render([
             {"title": "Dune 2", "poster_path": "media_assets/posters/dune2.jpg"},
             {"title": "Oppenheimer", "poster_path": "media_assets/posters/oppenheimer.jpg"},
         ], columns=5)
@@ -242,7 +260,7 @@ def render_trending_section():
                 st.image("media_assets/icons/no_results.png", width=300)
             return
             
-        MovieGridView(trending_movies, columns=5)
+        MovieGridView.render(trending_movies, columns=5)
         
     except Exception as e:
         cols = st.columns([0.3, 0.4, 0.3])
@@ -252,7 +270,7 @@ def render_trending_section():
             
         # Only show fallback if it's not an API key issue
         if "401" not in str(e):
-            MovieGridView([
+            MovieGridView.render([
                 {"title": "Dune 2", "poster_path": "media_assets/posters/dune2.jpg"},
                 {"title": "Oppenheimer", "poster_path": "media_assets/posters/oppenheimer.jpg"},
             ], columns=5)
@@ -313,7 +331,6 @@ def render_sidebar_filters_with_loading():
         st.session_state.filters_changed = False
         st.rerun()
 
-
 def render_app_footer():
     """Theme-aware footer with service status"""
     status = "✅ Online" if is_tmdb_available() else "❌ Offline"
@@ -322,12 +339,12 @@ def render_app_footer():
         <p>© 2024 MoviePulse | Data from TMDB | Service: {status} | v2.4</p>
     </div>
     """, unsafe_allow_html=True)
+
 # ----------------------- MAIN EXECUTION -----------------------
 if __name__ == "__main__":
     configure_page()
-
-    from session_utils.user_profile import init_profile
     init_profile()
+    check_first_time_user()
     
     # Layout structure
     render_app_header()
