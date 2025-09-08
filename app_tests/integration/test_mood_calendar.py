@@ -366,7 +366,7 @@ class TestMoodCalendarIntegration:
                 
         except ImportError as e:
             pytest.fail(f"Import error in UI integration test: {e}")
-        except Exception as e:
+        except Exception as e:  
             pytest.fail(f"UI component initialization failed: {e}")
     
     def test_export_convenience_function(self, mock_mood_data):

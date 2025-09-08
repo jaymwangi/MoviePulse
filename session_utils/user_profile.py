@@ -475,3 +475,23 @@ def get_watchlist() -> List[Dict[str, Any]]:
 def is_in_watchlist(movie_id: int) -> bool:
     """Check if a movie is in the user's watchlist"""
     return any(m["id"] == movie_id for m in get_watchlist())
+
+def get_mood_options() -> dict:
+    """
+    Returns available moods for the mood calendar.
+    Example return value:
+    {
+        "happy": {"emoji": "😄", "genres": ["Comedy", "Family"]},
+        "sad": {"emoji": "😢", "genres": ["Drama"]},
+        "excited": {"emoji": "🤩", "genres": ["Action", "Adventure"]},
+    }
+    """
+    return {
+        "happy": {"emoji": "😄", "genres": ["Comedy", "Family"]},
+        "sad": {"emoji": "😢", "genres": ["Drama"]},
+        "excited": {"emoji": "🤩", "genres": ["Action", "Adventure"]},
+        "romantic": {"emoji": "😍", "genres": ["Romance"]},
+        "thrilled": {"emoji": "😱", "genres": ["Thriller", "Horror"]},
+        "chill": {"emoji": "😎", "genres": ["Slice of Life", "Comedy"]},
+    }
+

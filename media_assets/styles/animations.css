@@ -1,0 +1,169 @@
+/* media_assets/styles/animations.css */
+/* Navigation and UI Animations for MoviePulse v2.1 */
+
+/* Poster Grid Fade-in Animation */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 40px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+.movie-grid-item {
+    animation: fadeInUp 0.6s ease forwards;
+    opacity: 0;
+}
+
+/* Stagger animations for grid items */
+.movie-grid-item:nth-child(1) { animation-delay: 0.05s; }
+.movie-grid-item:nth-child(2) { animation-delay: 0.1s; }
+.movie-grid-item:nth-child(3) { animation-delay: 0.15s; }
+.movie-grid-item:nth-child(4) { animation-delay: 0.2s; }
+.movie-grid-item:nth-child(5) { animation-delay: 0.25s; }
+.movie-grid-item:nth-child(6) { animation-delay: 0.3s; }
+.movie-grid-item:nth-child(7) { animation-delay: 0.35s; }
+.movie-grid-item:nth-child(8) { animation-delay: 0.4s; }
+.movie-grid-item:nth-child(9) { animation-delay: 0.45s; }
+.movie-grid-item:nth-child(10) { animation-delay: 0.5s; }
+.movie-grid-item:nth-child(n+11) { animation-delay: 0.55s; }
+
+/* Slide Transitions for Page Navigation */
+@keyframes slideInFromRight {
+    from {
+        transform: translate3d(100%, 0, 0);
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInFromLeft {
+    from {
+        transform: translate3d(-100%, 0, 0);
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+}
+
+.slide-right-enter {
+    animation: slideInFromRight 0.4s ease-out;
+}
+
+.slide-left-enter {
+    animation: slideInFromLeft 0.4s ease-out;
+}
+
+/* Recommendation Cards Animation */
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.recommendation-card {
+    animation: scaleIn 0.5s ease-out;
+}
+
+.recommendation-card:nth-child(1) { animation-delay: 0.1s; }
+.recommendation-card:nth-child(2) { animation-delay: 0.2s; }
+.recommendation-card:nth-child(3) { animation-delay: 0.3s; }
+.recommendation-card:nth-child(4) { animation-delay: 0.4s; }
+.recommendation-card:nth-child(5) { animation-delay: 0.5s; }
+
+/* Shimmer Loading Placeholders */
+@keyframes shimmer {
+    0% {
+        background-position: -468px 0;
+    }
+    100% {
+        background-position: 468px 0;
+    }
+}
+
+.shimmer {
+    animation-duration: 1.5s;
+    animation-fill-mode: forwards;
+    animation-iteration-count: infinite;
+    animation-name: shimmer;
+    animation-timing-function: linear;
+    background: #f6f7f8;
+    background: linear-gradient(to right, #eeeeee 8%, #dddddd 18%, #eeeeee 33%);
+    background-size: 800px 104px;
+    position: relative;
+}
+
+/* Hover Effects for Interactive Elements */
+.hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Focus States for Accessibility */
+.focus-ring:focus {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+}
+
+/* Bounce animation for notifications */
+@keyframes bounceIn {
+    0%, 20%, 40%, 60%, 80%, 100% {
+        animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);
+    }
+    0% {
+        opacity: 0;
+        transform: scale3d(0.3, 0.3, 0.3);
+    }
+    20% {
+        transform: scale3d(1.1, 1.1, 1.1);
+    }
+    40% {
+        transform: scale3d(0.9, 0.9, 0.9);
+    }
+    60% {
+        opacity: 1;
+        transform: scale3d(1.03, 1.03, 1.03);
+    }
+    80% {
+        transform: scale3d(0.97, 0.97, 0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: scale3d(1, 1, 1);
+    }
+}
+
+.bounce-in {
+    animation: bounceIn 0.6s;
+}
+
+/* Spin animation for loading spinners */
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}

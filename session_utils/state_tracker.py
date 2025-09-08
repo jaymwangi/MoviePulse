@@ -331,3 +331,20 @@ def set_current_director(director_id: int, name: str = None, profile_path: str =
         st.session_state["current_director_name"] = name
     if profile_path:
         st.session_state["current_director_profile_path"] = profile_path
+
+
+def get_mood_for_date(date_str: str) -> Optional[str]:
+    """
+    Get the selected mood for a given date (ISO string).
+    Returns None if no mood is set.
+    """
+    selected_moods = st.session_state.get("selected_moods", {})
+    return selected_moods.get(date_str)
+
+def set_mood_for_date(date_str: str, mood: str):
+    """
+    Set a mood for a specific date in session state.
+    """
+    if "selected_moods" not in st.session_state:
+        st.session_state.selected_moods = {}
+    st.session_state.selected_moods[date_str] = mood

@@ -1,22 +1,117 @@
 import streamlit as st
 import streamlit.components.v1 as components
-from typing import Union, Optional
+from typing import Union, Optional, Literal
 import html
 import json
+from datetime import datetime
+
+def show_movie_toast(
+    action_type: Literal["like", "unlike", "watchlist_add", "watchlist_remove"],
+    movie_title: str,
+    icon: str = "🎬",
+    duration: int = 3000
+):
+    """Enhanced toast notification system for movie actions"""
+    messages = {
+        "like": f"{icon} Added to Favorites",
+        "unlike": f"{icon} Removed from Favorites",
+        "watchlist_add": f"{icon} Added to Watchlist",
+        "watchlist_remove": f"{icon} Removed from Watchlist"
+    }
+    
+    # Get the appropriate message
+    message = messages.get(action_type, f"{icon} Movie action completed")
+    
+    # Create a more detailed toast
+    toast_html = f"""
+    <style>
+    .movie-toast {{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: rgba(32, 33, 36, 0.9);
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border-left: 4px solid;
+        animation: fadeIn 0.3s ease-out;
+    }}
+    
+    .movie-toast.like {{
+        border-color: #ff4d4d;
+    }}
+    
+    .movie-toast.unlike {{
+        border-color: #ff9999;
+    }}
+    
+    .movie-toast.watchlist_add {{
+        border-color: #4CAF50;
+    }}
+    
+    .movie-toast.watchlist_remove {{
+        border-color: #81C784;
+    }}
+    
+    .movie-toast-icon {{
+        font-size: 1.5rem;
+    }}
+    
+    .movie-toast-content {{
+        display: flex;
+        flex-direction: column;
+    }}
+    
+    .movie-toast-title {{
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-bottom: 2px;
+    }}
+    
+    .movie-toast-message {{
+        font-size: 0.85rem;
+        opacity: 0.9;
+    }}
+    
+    .movie-toast-time {{
+        font-size: 0.75rem;
+        opacity: 0.7;
+        margin-top: 4px;
+    }}
+    
+    @keyframes fadeIn {{
+        from {{ opacity: 0; transform: translateY(10px); }}
+        to {{ opacity: 1; transform: translateY(0); }}
+    }}
+    </style>
+    
+    <div class="movie-toast {action_type}">
+        <div class="movie-toast-icon">{icon}</div>
+        <div class="movie-toast-content">
+            <div class="movie-toast-title">{movie_title}</div>
+            <div class="movie-toast-message">{message}</div>
+            <div class="movie-toast-time">{datetime.now().strftime("%H:%M")}</div>
+        </div>
+    </div>
+    """
+    
+    # Show the toast
+    components.html(toast_html, height=80)
 
 def MovieTile(
     movie_data: Union[dict, object],
     testid_suffix: Optional[str] = None,
     lazy_load: bool = True,
     debug: bool = False,
+    tldr_data: Optional[dict] = None,
     **kwargs
 ):
     """
-    Movie Tile Component v3.9 - Ultimate Responsive Layout
-    - Perfectly balanced responsive spacing
-    - Guaranteed single-line metadata
-    - Optimized for all screen sizes
-    - Preserves all interactive features
+    Movie Tile Component v4.1 - Enhanced with TL;DR preview in hover panel
+    - Zoom effect on hover
+    - TL;DR preview display in hover panel instead of TMDB overview
+    - Optimized for large grids
     """
 
     # ===== DATA EXTRACTION =====
@@ -82,6 +177,23 @@ def MovieTile(
     else:
         image_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
 
+    # Process TL;DR data - check if tldr_data is provided or if it's in movie_data
+    tldr_summary = ""
+    tldr_themes = []
+    tldr_flags = []
+    
+    # First check if tldr_data parameter is provided
+    if tldr_data:
+        tldr_summary = html.escape(tldr_data.get('summary', ''))
+        tldr_themes = [html.escape(theme) for theme in tldr_data.get('themes', [])[:3]]
+        tldr_flags = [html.escape(flag) for flag in tldr_data.get('flags', [])[:2]]
+    # If not, check if there's tldr data in the movie_data itself
+    elif 'tldr' in movie_data and movie_data['tldr']:
+        tldr_data = movie_data['tldr']
+        tldr_summary = html.escape(tldr_data.get('summary', ''))
+        tldr_themes = [html.escape(theme) for theme in tldr_data.get('themes', [])[:3]]
+        tldr_flags = [html.escape(flag) for flag in tldr_data.get('flags', [])[:2]]
+
     # ===== STATE & THEME MANAGEMENT =====
     tile_key = f"mt_{hash(title)}_{testid_suffix or '0'}"
     liked_key = f"{tile_key}_liked"
@@ -116,9 +228,10 @@ def MovieTile(
     .movie-tile-container-{tile_key} {{
         width: 100%;
         margin-bottom: 0.5rem !important;
+        position: relative;
     }}
     
-    /* Poster container */
+    /* Poster container with enhanced hover effects */
     .movie-tile-{tile_key} {{
         position: relative;
         width: 100%;
@@ -127,8 +240,16 @@ def MovieTile(
         overflow: hidden;
         cursor: pointer;
         margin-bottom: 0 !important;
-        transition: transform 0.3s ease;
+        transition: all 0.3s ease;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transform-origin: center;
+    }}
+    
+    /* Enhanced hover effects */
+    .movie-tile-{tile_key}:hover {{
+        transform: scale(1.05);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        z-index: 10;
     }}
     
     /* Poster image with subtle hover effect */
@@ -141,8 +262,8 @@ def MovieTile(
     }}
     
     .movie-tile-{tile_key}:hover .movie-poster-{tile_key} {{
-        transform: scale(1.03);
-        filter: brightness(1.02);
+        transform: scale(1.08);
+        filter: brightness(1.05);
     }}
     
     /* Action buttons */
@@ -217,14 +338,14 @@ def MovieTile(
         margin-top: -1px;
     }}
     
-    /* Hover panel styling */
+    /* Hover panel styling - UPDATED FOR TL;DR */
     .hover-panel-{tile_key} {{
         position: absolute;
         bottom: 0;
         left: 0;
         right: 0;
         height: 12.5%;
-        background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 70%, transparent 100%);
+        background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 70%, transparent 100%);
         color: white;
         padding: 8px 12px;
         transition: all 0.3s ease;
@@ -238,7 +359,7 @@ def MovieTile(
     /* Expanded state */
     .movie-tile-{tile_key}.expanded .hover-panel-{tile_key} {{
         height: 100%;
-        background: rgba(0, 0, 0, 0.88);
+        background: rgba(0, 0, 0, 0.95);
         backdrop-filter: blur(4px);
         overflow-y: auto;
         padding: 16px;
@@ -277,7 +398,7 @@ def MovieTile(
         opacity: 1;
     }}
     
-    /* Panel content */
+    /* Panel content - UPDATED FOR TL;DR */
     .hover-title-{tile_key} {{
         font-weight: 700;
         font-size: 1.1rem;
@@ -294,27 +415,78 @@ def MovieTile(
         flex-wrap: wrap;
     }}
     
-    .hover-short-overview-{tile_key} {{
+    /* TL;DR Section in Hover Panel */
+    .tldr-section-{tile_key} {{
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255,255,255,0.2);
+    }}
+    
+    .tldr-label-{tile_key} {{
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #FFD700;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }}
+    
+    .tldr-summary-{tile_key} {{
         font-size: 0.8rem;
         line-height: 1.3;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        margin-bottom: 6px;
+        color: #ffffff;
+    }}
+    
+    .tldr-themes-{tile_key} {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 6px;
+    }}
+    
+    .tldr-theme-tag-{tile_key} {{
+        background: rgba(255, 215, 0, 0.2);
+        color: #FFD700;
+        padding: 2px 6px;
+        border-radius: 8px;
+        font-size: 0.7rem;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+    }}
+    
+    .tldr-flags-{tile_key} {{
+        display: flex;
+        gap: 6px;
+        font-size: 0.75rem;
+        opacity: 0.8;
+    }}
+    
+    /* Full overview section (shown only when expanded) */
+    .full-overview-section-{tile_key} {{
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255,255,255,0.2);
+        display: none;
+    }}
+    
+    .full-overview-label-{tile_key} {{
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #4FC3F7;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
     }}
     
     .hover-full-overview-{tile_key} {{
         font-size: 0.8rem;
         line-height: 1.4;
-        margin-top: 12px;
-        display: none;
+        color: #dddddd;
     }}
     
-    .movie-tile-{tile_key}.expanded .hover-short-overview-{tile_key} {{
-        display: none;
-    }}
-    
-    .movie-tile-{tile_key}.expanded .hover-full-overview-{tile_key} {{
+    .movie-tile-{tile_key}.expanded .full-overview-section-{tile_key} {{
         display: block;
     }}
     
@@ -326,6 +498,7 @@ def MovieTile(
         flex-direction: column;
         gap: 0.6rem;
         width: 100%;
+        position: relative;
     }}
     
     .movie-title-{tile_key} {{
@@ -338,6 +511,7 @@ def MovieTile(
         text-overflow: ellipsis;
         color: {text_color};
         line-height: 1.3;
+        transition: all 0.2s ease;
     }}
     
     .movie-meta-{tile_key} {{
@@ -440,7 +614,7 @@ def MovieTile(
                 </button>
             </div>
             
-            <!-- Hover Panel -->
+            <!-- Hover Panel - UPDATED TO SHOW TL;DR -->
             <div class="hover-panel-{tile_key}">
                 <div class="hover-title-{tile_key}">{title}</div>
                 <div class="hover-meta-{tile_key}">
@@ -448,8 +622,22 @@ def MovieTile(
                     <span>⭐ {rating_str}</span>
                     <span>⏱ {runtime_str}</span>
                 </div>
-                <div class="hover-short-overview-{tile_key}">{short_overview}</div>
-                <div class="hover-full-overview-{tile_key}">{full_overview}</div>
+                
+                <!-- TL;DR Section -->
+                <div class="tldr-section-{tile_key}">
+                    <div class="tldr-label-{tile_key}">📝 TL;DR Preview:</div>
+                    {f'<div class="tldr-summary-{tile_key}">"{tldr_summary}"</div>' if tldr_summary else f'<div class="tldr-summary-{tile_key}">No TL;DR available yet</div>'}
+                    
+                    {f'<div class="tldr-themes-{tile_key}">{"".join(f"<span class=\"tldr-theme-tag-{tile_key}\">{theme}</span>" for theme in tldr_themes)}</div>' if tldr_themes else ''}
+                    
+                    {f'<div class="tldr-flags-{tile_key}">{" ".join(tldr_flags)}</div>' if tldr_flags else ''}
+                </div>
+                
+                <!-- Full Overview Section (shown only when expanded) -->
+                <div class="full-overview-section-{tile_key}">
+                    <div class="full-overview-label-{tile_key}">🌐 Full Overview:</div>
+                    <div class="hover-full-overview-{tile_key}">{full_overview}</div>
+                </div>
             </div>
         </div>
         
@@ -551,7 +739,7 @@ def MovieTile(
 # Example usage
 if __name__ == "__main__":
     st.set_page_config(layout="wide")
-    st.title("🎬 Ultimate MovieTile Component")
+    st.title("🎬 Enhanced MovieTile Component with TL;DR Preview")
     
     # Message handling
     components.html(
@@ -588,18 +776,30 @@ if __name__ == "__main__":
             if action.get("type") == "navigation":
                 st.write(f"Navigating to: {action['title']}")
             else:
+                prev_state = st.session_state.get(action["key"], False)
                 st.session_state[action["key"]] = action["state"]
                 
+                # Determine the action type for toast
                 if action["action"] == "like":
-                    st.toast(f"{'❤️ Added to Favorites' if action['state'] else '🤍 Removed from Favorites'} - {action['title']}")
+                    action_type = "like" if action["state"] else "unlike"
+                    icon = "❤️" if action["state"] else "💔"
                 else:
-                    st.toast(f"{'✅ Added to Watchlist' if action['state'] else '➕ Removed from Watchlist'} - {action['title']}")
+                    action_type = "watchlist_add" if action["state"] else "watchlist_remove"
+                    icon = "✅" if action["state"] else "❌"
+                
+                # Show the enhanced toast
+                show_movie_toast(
+                    action_type=action_type,
+                    movie_title=action["title"],
+                    icon=icon,
+                    duration=3000
+                )
             
             del st.session_state["_component_value"]
         except Exception as e:
             st.error(f"Error handling action: {str(e)}")
     
-    # Test movies
+    # Test movies with TL;DR data
     test_movies = [
         {
             "title": "The Dark Knight",
@@ -608,7 +808,12 @@ if __name__ == "__main__":
             "vote_average": 9.0,
             "runtime": 152,
             "release_date": "2008-07-16",
-            "genres": [{"name": "Action"}, {"name": "Crime"}, {"name": "Drama"}]
+            "genres": [{"name": "Action"}, {"name": "Crime"}, {"name": "Drama"}],
+            "tldr": {
+                "summary": "Batman battles the chaotic Joker in a psychological war for Gotham's soul.",
+                "themes": ["Chaos vs Order", "Dual Identity", "Moral Limits"],
+                "flags": ["⚠️ Intense Violence", "🧠 Psychological Themes"]
+            }
         },
         {
             "title": "Inception",
@@ -617,12 +822,32 @@ if __name__ == "__main__":
             "vote_average": 8.4,
             "runtime": 148,
             "release_date": "2010-07-16",
-            "genres": [{"name": "Action"}, {"name": "Adventure"}, {"name": "Sci-Fi"}]
+            "genres": [{"name": "Action"}, {"name": "Adventure"}, {"name": "Sci-Fi"}],
+            "tldr": {
+                "summary": "Dream thieves attempt to plant an idea in a target's subconscious.",
+                "themes": ["Reality vs Dreams", "Guilt & Redemption", "Architecture of Mind"],
+                "flags": ["🌀 Complex Plot", "🧠 Mind-bending"]
+            }
+        },
+        {
+            "title": "The Shawshank Redemption",
+            "poster_path": "/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",
+            "overview": "Framed in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting skills to work for an amoral warden. During his long stretch in prison, Dufresne comes to be admired by the other inmates -- including an older prisoner named Red -- for his integrity and unquenchable sense of hope.",
+            "vote_average": 9.3,
+            "runtime": 142,
+            "release_date": "1994-09-23",
+            "genres": [{"name": "Drama"}, {"name": "Crime"}],
+            "tldr": {
+                "summary": "A banker maintains hope and dignity while serving a life sentence.",
+                "themes": ["Hope & Perseverance", "Friendship", "Institutionalization"],
+                "flags": ["🔞 Prison Violence", "💔 Emotional Themes"]
+            }
         }
     ]
     
-    # Display tiles in responsive grid
-    cols = st.columns(2)
+    # Display tiles in responsive grid - FIXED: Don't pop the tldr data
+    cols = st.columns(3)
     for idx, movie in enumerate(test_movies):
         with cols[idx % len(cols)]:
-            MovieTile(movie, testid_suffix=f"col{idx}")
+            # Pass the tldr data directly from the movie dictionary
+            MovieTile(movie, testid_suffix=f"col{idx}", tldr_data=movie.get("tldr"))

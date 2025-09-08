@@ -28,6 +28,10 @@ from core_config.constants import (
 from streamlit.components.v1 import html
 from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model import recommender as hybrid_recommender
 from ai_smart_recommender.user_personalization.watch_history import WatchHistory
+from ai_local_modules.tldr_summarizer import TLDRGenerator
+from ui_components.QuickSummary import render_quick_summary
+
+tldr_generator = TLDRGenerator()
 
 # ----------------------- CSS LOADING -----------------------
 @st.cache_data
@@ -164,10 +168,32 @@ def render_poster(details):
         logger.warning(f"Failed to load poster: {str(e)}", exc_info=True)
         st.image("media_assets/poster_error.png", alt="Error loading poster")
 
+def render_tldr_section(movie_data: dict):
+    """
+    Generate TL;DR using the TLDRGenerator and render with QuickSummary.
+    movie_data should include keys: overview (str), genres (list), keywords (list), title (str)
+    """
+    try:
+        # Generate TL;DR data - this now matches QuickSummary's expected format directly
+        tldr_data = tldr_generator.generate_tldr(movie_data)
+
+        # Pass the data directly to QuickSummary (perfect match - no mapping needed!)
+        render_quick_summary(tldr_data)
+
+        # Subtle fallback indicator under the component if needed
+        if tldr_data.get("is_fallback", False):
+            st.caption("ℹ️ Basic summary (detailed analysis unavailable)")
+
+    except Exception:
+        # Log and show shimmer state (component will render loading UI)
+        logger.exception("TL;DR generation failed")
+        render_quick_summary(None)  # Show loading placeholder
+        st.caption("⚠️ TL;DR generation unavailable")
+
 def render_title_section(details, movie_id):
     release_year = details.release_date[:4] if details.release_date else "N/A"
     st.title(f"{details.title} ({release_year})")
-    
+
     metadata = []
     if details.vote_average > 0:
         metadata.append(f"⭐ {details.vote_average:.1f}/10")
@@ -177,11 +203,34 @@ def render_title_section(details, movie_id):
         metadata.append("🔞 Adult Content")
     if metadata:
         st.caption(" • ".join(metadata))
+
+    # --- TL;DR section (new) ---
+    # Extract keywords properly - handle different TMDB data structures
+    keywords = []
+    if hasattr(details, 'keywords') and details.keywords:
+        for keyword in details.keywords:
+            if hasattr(keyword, 'name'):
+                keywords.append(keyword.name)
+            elif isinstance(keyword, str):
+                keywords.append(keyword)
+            else:
+                # Handle other potential keyword formats
+                keywords.append(str(keyword))
     
-    with st.expander("Overview", expanded=True):
+    movie_data_for_tldr = {
+        "overview": details.overview or "",
+        "genres": [g.name for g in getattr(details, "genres", [])],
+        "keywords": keywords[:10],  # Limit to top 10 keywords
+        "title": details.title,
+    }
+    render_tldr_section(movie_data_for_tldr)
+    # --- end TL;DR ---
+
+    with st.expander("Full Overview", expanded=False):
         st.markdown(details.overview or "*No overview available*")
-    
+
     render_watchlist_button(movie_id, details)
+
 
 def render_watchlist_button(movie_id: int, movie_data: dict):
     """Enhanced watchlist toggle with visual feedback"""
