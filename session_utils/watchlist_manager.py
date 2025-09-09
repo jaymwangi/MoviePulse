@@ -54,8 +54,24 @@ def persist_watchlist() -> bool:
     logger.info(f"Watchlist persisted for user {user_id}")
     return True
 
+def show_toast_notification(message: str, type: str = "info", duration: int = 3000):
+    """Show a toast notification using the ToastManager if available"""
+    try:
+        # Check if ToastManager is available in session state
+        if "toast_manager" in st.session_state:
+            st.session_state.toast_manager.show_toast(message, type, duration)
+        else:
+            # Fallback: use Streamlit's native toast if available
+            if hasattr(st, 'toast'):
+                st.toast(message)
+            else:
+                # Final fallback: just log the message
+                logger.info(f"Toast notification: {message}")
+    except Exception as e:
+        logger.error(f"Failed to show toast notification: {str(e)}")
+
 def add_to_watchlist(movie_data: dict):
-    """Enhanced version to handle starter packs"""
+    """Enhanced version to handle starter packs with toast notification"""
     user_id = st.session_state.get("user_id", "anonymous")
     watchlist_data = load_watchlist()
     
@@ -64,6 +80,7 @@ def add_to_watchlist(movie_data: dict):
     
     # Skip if movie already exists
     if any(m["movie_id"] == movie_data["movie_id"] for m in watchlist_data[user_id]["movies"]):
+        show_toast_notification("Movie is already in your watchlist", "warning")
         return False
     
     # Fetch basic details if missing (for starter packs)
@@ -87,25 +104,67 @@ def add_to_watchlist(movie_data: dict):
     watchlist_data[user_id]["movies"].append(movie_data)
     WATCHLIST_PATH.write_text(json.dumps(watchlist_data, indent=2))
     st.session_state.watchlist = watchlist_data[user_id]["movies"]
+    
+    # Show success toast notification
+    movie_title = movie_data.get("title", "Movie")
+    show_toast_notification(f"'{movie_title}' added to your watchlist", "success")
+    
+    # Log analytics event if available
+    try:
+        if "analytics_client" in st.session_state:
+            st.session_state.analytics_client.log_event(
+                "watchlist_add", 
+                movie_id=movie_data["movie_id"],
+                movie_title=movie_title
+            )
+    except Exception as e:
+        logger.error(f"Failed to log analytics event: {str(e)}")
+    
     return True
 
 def remove_from_watchlist(movie_id: int):
-    """Remove movie by ID from watchlist"""
+    """Remove movie by ID from watchlist with toast notification"""
     user_id = st.session_state.get("user_id", "anonymous")
     watchlist_data = load_watchlist()
     
     if user_id in watchlist_data:
-        initial_count = len(watchlist_data[user_id]["movies"])
-        watchlist_data[user_id]["movies"] = [
-            m for m in watchlist_data[user_id]["movies"]
-            if m["movie_id"] != movie_id
-        ]
+        # Find the movie to get its title for the toast message
+        movie_to_remove = next(
+            (m for m in watchlist_data[user_id]["movies"] if m["movie_id"] == movie_id),
+            None
+        )
         
-        if len(watchlist_data[user_id]["movies"]) < initial_count:
-            WATCHLIST_PATH.write_text(json.dumps(watchlist_data, indent=2))
-            st.session_state.watchlist = watchlist_data[user_id]["movies"]
-            return True
+        if movie_to_remove:
+            initial_count = len(watchlist_data[user_id]["movies"])
+            watchlist_data[user_id]["movies"] = [
+                m for m in watchlist_data[user_id]["movies"]
+                if m["movie_id"] != movie_id
+            ]
+            
+            if len(watchlist_data[user_id]["movies"]) < initial_count:
+                WATCHLIST_PATH.write_text(json.dumps(watchlist_data, indent=2))
+                st.session_state.watchlist = watchlist_data[user_id]["movies"]
+                
+                # Show success toast notification
+                movie_title = movie_to_remove.get("title", "Movie")
+                show_toast_notification(f"'{movie_title}' removed from your watchlist", "info")
+                
+                # Log analytics event if available
+                try:
+                    if "analytics_client" in st.session_state:
+                        st.session_state.analytics_client.log_event(
+                            "watchlist_remove", 
+                            movie_id=movie_id,
+                            movie_title=movie_title
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to log analytics event: {str(e)}")
+                
+                return True
+    
+    show_toast_notification("Movie not found in your watchlist", "warning")
     return False
+
 def get_user_watchlist(user_id: str = None) -> list:
     """Get watchlist for specific user"""
     user_id = user_id or st.session_state.get("user_id", "anonymous")

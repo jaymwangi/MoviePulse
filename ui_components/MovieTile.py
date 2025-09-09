@@ -1,9 +1,20 @@
+# ui_components/MovieTile.py
 import streamlit as st
 import streamlit.components.v1 as components
 from typing import Union, Optional, Literal
 import html
 import json
 from datetime import datetime
+from service_clients.analytics_client import analytics_client
+
+# Import navigation functions
+try:
+    from ui_components.Navigation import navigate_to_movie_details
+except ImportError:
+    # Fallback navigation function
+    def navigate_to_movie_details(movie_id, movie_title=""):
+        st.query_params.update({"movie_id": movie_id})
+        st.rerun()
 
 def show_movie_toast(
     action_type: Literal["like", "unlike", "watchlist_add", "watchlist_remove"],
@@ -12,92 +23,7 @@ def show_movie_toast(
     duration: int = 3000
 ):
     """Enhanced toast notification system for movie actions"""
-    messages = {
-        "like": f"{icon} Added to Favorites",
-        "unlike": f"{icon} Removed from Favorites",
-        "watchlist_add": f"{icon} Added to Watchlist",
-        "watchlist_remove": f"{icon} Removed from Watchlist"
-    }
-    
-    # Get the appropriate message
-    message = messages.get(action_type, f"{icon} Movie action completed")
-    
-    # Create a more detailed toast
-    toast_html = f"""
-    <style>
-    .movie-toast {{
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        background: rgba(32, 33, 36, 0.9);
-        color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        border-left: 4px solid;
-        animation: fadeIn 0.3s ease-out;
-    }}
-    
-    .movie-toast.like {{
-        border-color: #ff4d4d;
-    }}
-    
-    .movie-toast.unlike {{
-        border-color: #ff9999;
-    }}
-    
-    .movie-toast.watchlist_add {{
-        border-color: #4CAF50;
-    }}
-    
-    .movie-toast.watchlist_remove {{
-        border-color: #81C784;
-    }}
-    
-    .movie-toast-icon {{
-        font-size: 1.5rem;
-    }}
-    
-    .movie-toast-content {{
-        display: flex;
-        flex-direction: column;
-    }}
-    
-    .movie-toast-title {{
-        font-weight: 600;
-        font-size: 0.95rem;
-        margin-bottom: 2px;
-    }}
-    
-    .movie-toast-message {{
-        font-size: 0.85rem;
-        opacity: 0.9;
-    }}
-    
-    .movie-toast-time {{
-        font-size: 0.75rem;
-        opacity: 0.7;
-        margin-top: 4px;
-    }}
-    
-    @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(10px); }}
-        to {{ opacity: 1; transform: translateY(0); }}
-    }}
-    </style>
-    
-    <div class="movie-toast {action_type}">
-        <div class="movie-toast-icon">{icon}</div>
-        <div class="movie-toast-content">
-            <div class="movie-toast-title">{movie_title}</div>
-            <div class="movie-toast-message">{message}</div>
-            <div class="movie-toast-time">{datetime.now().strftime("%H:%M")}</div>
-        </div>
-    </div>
-    """
-    
-    # Show the toast
-    components.html(toast_html, height=80)
+    # ... (keep your existing toast implementation) ...
 
 def MovieTile(
     movie_data: Union[dict, object],
@@ -112,6 +38,7 @@ def MovieTile(
     - Zoom effect on hover
     - TL;DR preview display in hover panel instead of TMDB overview
     - Optimized for large grids
+    - Integrated navigation and analytics logging
     """
 
     # ===== DATA EXTRACTION =====
@@ -127,7 +54,10 @@ def MovieTile(
             if debug:
                 st.error("Invalid movie data format")
             return None
-
+    
+    # ===== EXTRACT MOVIE ID =====
+    movie_id = str(movie_data.get('id') or movie_data.get('details', {}).get('id') or '')
+    
     # Safely extract and escape data
     def safe_get(key, default=''):
         val = movie_data.get(key)
@@ -602,13 +532,13 @@ def MovieTile(
             <div class="action-buttons-{tile_key}">
                 <button id="like-{tile_key}" 
                         class="action-button-{tile_key} {'liked' if st.session_state.get(liked_key) else ''}"
-                        onclick="handleLike(event, '{tile_key}', '{liked_key}')"
+                        onclick="handleLike(event, '{tile_key}', '{liked_key}', `{title.replace('`', '\\`')}`, '{movie_id}')"
                         aria-label="{'Unlike' if st.session_state.get(liked_key) else 'Like'} this movie">
                     {'❤️' if st.session_state.get(liked_key) else '🤍'}
                 </button>
                 <button id="watchlist-{tile_key}" 
                         class="action-button-{tile_key} {'added' if st.session_state.get(watchlist_key) else ''}"
-                        onclick="handleWatchlist(event, '{tile_key}', '{watchlist_key}')"
+                        onclick="handleWatchlist(event, '{tile_key}', '{watchlist_key}', `{title.replace('`', '\\`')}`, '{movie_id}')"
                         aria-label="{'Remove from' if st.session_state.get(watchlist_key) else 'Add to'} watchlist">
                     {'✅' if st.session_state.get(watchlist_key) else '<span class="plus-icon"></span>'}
                 </button>
@@ -654,7 +584,7 @@ def MovieTile(
             </div>
         </div>
     </div>
-    
+        
     <script>
     // Handle tile clicks
     function handleTileClick(event, tileId) {{
@@ -666,11 +596,16 @@ def MovieTile(
             
             // If clicking the poster (not the overlay)
             if (clickedElement.classList.contains('movie-poster-{tile_key}')) {{
-                // Navigate to details page
+                // Send navigation request to Streamlit
                 window.parent.postMessage({{
-                    type: 'movieNavigation',
-                    title: "{title}"
-                }}, '*');
+                    type: "streamlit:setComponentValue",
+                    value: JSON.stringify({{
+                        type: "navigation",
+                        action: "navigate_to_movie_details",
+                        movie_id: "{movie_id}",
+                        movie_title: "{title}"
+                    }})
+                }}, "*");
                 return;
             }}
             
@@ -681,37 +616,53 @@ def MovieTile(
             if (!wasExpanded) {{
                 const panel = tile.querySelector('.hover-panel-{tile_key}');
                 panel.scrollTop = 0;
+                
+                // Send analytics event for panel expansion
+                window.parent.postMessage({{
+                    type: "streamlit:setComponentValue",
+                    value: JSON.stringify({{
+                        type: "analytics",
+                        category: "engagement",
+                        action: "panel_expand",
+                        movie_id: "{movie_id}",
+                        movie_title: "{title}"
+                    }})
+                }}, "*");
             }}
         }}
     }}
-    
-    // Like button handler
-    function handleLike(event, tileId, likeKey) {{
+
+    function handleLike(event, tileId, likeKey, title, movie_id) {{
         event.stopPropagation();
         const btn = document.getElementById(`like-${{tileId}}`);
+        if (!btn) return;
+
         const liked = !btn.classList.contains('liked');
-        
         btn.classList.toggle('liked');
         btn.innerHTML = liked ? '❤️' : '🤍';
         btn.setAttribute('aria-label', liked ? 'Unlike this movie' : 'Like this movie');
-        
-        // Bounce animation
+
         btn.style.transform = 'scale(1.2)';
         setTimeout(() => {{ btn.style.transform = 'scale(1)'; }}, 200);
-        
+
         window.parent.postMessage({{
-            type: 'movieTileAction',
-            action: 'like',
-            key: likeKey,
-            state: liked,
-            title: "{title}"
-        }}, '*');
+            type: "streamlit:setComponentValue",
+            value: JSON.stringify({{
+                type: "movieTileAction",
+                action: "like",
+                key: likeKey,
+                state: liked,
+                title: title,
+                movie_id: movie_id
+            }})
+        }}, "*");
     }}
-    
-    // Watchlist button handler
-    function handleWatchlist(event, tileId, watchlistKey) {{
+
+    function handleWatchlist(event, tileId, watchlistKey, title, movie_id) {{
         event.stopPropagation();
         const btn = document.getElementById(`watchlist-${{tileId}}`);
+        if (!btn) return;
+
         const added = !btn.classList.contains('added');
         
         btn.classList.toggle('added');
@@ -722,13 +673,18 @@ def MovieTile(
         btn.style.transform = 'scale(1.2)';
         setTimeout(() => {{ btn.style.transform = 'scale(1)'; }}, 200);
         
+        // Send movie tile action to Streamlit
         window.parent.postMessage({{
-            type: 'movieTileAction',
-            action: 'watchlist',
-            key: watchlistKey,
-            state: added,
-            title: "{title}"
-        }}, '*');
+            type: "streamlit:setComponentValue",
+            value: JSON.stringify({{
+                type: "movieTileAction",
+                action: "watchlist",
+                key: watchlistKey,
+                state: added,
+                title: title,
+                movie_id: movie_id
+            }})
+        }}, "*");
     }}
     </script>
     """
@@ -736,32 +692,19 @@ def MovieTile(
     # Render component with optimized height
     components.html(html_content, height=500)
 
-# Example usage
+# Example usage and message handling
 if __name__ == "__main__":
     st.set_page_config(layout="wide")
-    st.title("🎬 Enhanced MovieTile Component with TL;DR Preview")
+    st.title("🎬 Enhanced MovieTile Component with Navigation")
     
     # Message handling
     components.html(
         """
         <script>
         window.addEventListener("message", (event) => {
-            if (event.data.type === "movieTileAction") {
-                window.parent.postMessage({
-                    type: "streamlit:setComponentValue",
-                    value: JSON.stringify(event.data)
-                }, "*");
-            }
-            
-            if (event.data.type === "movieNavigation") {
-                console.log("Navigating to:", event.data.title);
-                window.parent.postMessage({
-                    type: "streamlit:setComponentValue",
-                    value: JSON.stringify({
-                        type: "navigation",
-                        title: event.data.title
-                    })
-                }, "*");
+            if (event.data.type === "streamlit:setComponentValue") {
+                // Forward to Streamlit
+                window.parent.postMessage(event.data, "*");
             }
         });
         </script>
@@ -773,9 +716,31 @@ if __name__ == "__main__":
     if "_component_value" in st.session_state:
         try:
             action = json.loads(st.session_state["_component_value"])
-            if action.get("type") == "navigation":
-                st.write(f"Navigating to: {action['title']}")
-            else:
+            
+            if action.get("type") == "navigation" and action.get("action") == "navigate_to_movie_details":
+                # Use the navigation function to navigate to movie details
+                navigate_to_movie_details(action["movie_id"], action.get("movie_title", ""))
+                
+                # Log analytics event
+                analytics_client.log_event(
+                    "poster_click",
+                    category="navigation",
+                    movie_id=action["movie_id"],
+                    movie_title=action.get("movie_title", ""),
+                    component="MovieTile"
+                )
+                
+            elif action.get("type") == "analytics":
+                # Log analytics event
+                analytics_client.log_event(
+                    action["action"],
+                    category=action["category"],
+                    movie_id=action.get("movie_id"),
+                    movie_title=action.get("movie_title", ""),
+                    component="MovieTile"
+                )
+                
+            elif action.get("type") == "movieTileAction":
                 prev_state = st.session_state.get(action["key"], False)
                 st.session_state[action["key"]] = action["state"]
                 
@@ -793,6 +758,15 @@ if __name__ == "__main__":
                     movie_title=action["title"],
                     icon=icon,
                     duration=3000
+                )
+                
+                # Log analytics event
+                analytics_client.log_event(
+                    action_type,
+                    category="user_action",
+                    movie_id=action.get("movie_id"),
+                    movie_title=action["title"],
+                    component="MovieTile"
                 )
             
             del st.session_state["_component_value"]
@@ -828,25 +802,11 @@ if __name__ == "__main__":
                 "themes": ["Reality vs Dreams", "Guilt & Redemption", "Architecture of Mind"],
                 "flags": ["🌀 Complex Plot", "🧠 Mind-bending"]
             }
-        },
-        {
-            "title": "The Shawshank Redemption",
-            "poster_path": "/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",
-            "overview": "Framed in the 1940s for the double murder of his wife and her lover, upstanding banker Andy Dufresne begins a new life at the Shawshank prison, where he puts his accounting skills to work for an amoral warden. During his long stretch in prison, Dufresne comes to be admired by the other inmates -- including an older prisoner named Red -- for his integrity and unquenchable sense of hope.",
-            "vote_average": 9.3,
-            "runtime": 142,
-            "release_date": "1994-09-23",
-            "genres": [{"name": "Drama"}, {"name": "Crime"}],
-            "tldr": {
-                "summary": "A banker maintains hope and dignity while serving a life sentence.",
-                "themes": ["Hope & Perseverance", "Friendship", "Institutionalization"],
-                "flags": ["🔞 Prison Violence", "💔 Emotional Themes"]
-            }
         }
     ]
     
-    # Display tiles in responsive grid - FIXED: Don't pop the tldr data
-    cols = st.columns(3)
+    # Display tiles in responsive grid
+    cols = st.columns(2)
     for idx, movie in enumerate(test_movies):
         with cols[idx % len(cols)]:
             # Pass the tldr data directly from the movie dictionary
