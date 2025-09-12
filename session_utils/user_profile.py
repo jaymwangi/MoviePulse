@@ -11,8 +11,16 @@ from datetime import datetime
 PROFILE_FILE = "user_profiles.json"
 PACK_TO_GENRE_FILE = "static_data/pack_to_genre_map.json"
 BADGES_CONFIG = "static_data/cinephile_badges.json"
+PREFERENCES_FILE = "static_data/user_preferences.json"
+DEFAULT_PREFERENCES = {
+    "theme": "dark",
+    "font": "default",
+    "spoiler_free": False,
+    "dyslexia_mode": False,
+    "critic_mode": "balanced"  # Default critic mode
+}
 DEFAULT_PROFILE = {
-    "critic_mode": "default",
+    "critic_mode": "balanced",
     "theme": "dark",
     "watchlist": [],
     "view_history": [],
@@ -314,7 +322,7 @@ def clear_new_badges_notification():
 # ===== Profile Management Functions =====
 def set_critic_mode(mode: str):
     """Set and persist the critic mode preference"""
-    if mode not in ["default", "strict", "lenient"]:
+    if mode not in ["default", "strict", "lenient", "balanced"]:
         logger.warning(f"Attempt to set invalid critic mode: {mode}")
         return
     
@@ -328,7 +336,7 @@ def get_critic_mode() -> str:
     """Get the current critic mode preference"""
     if "critic_mode" not in st.session_state:
         profile = load_current_profile()
-        st.session_state.critic_mode = profile.get("critic_mode", "default")
+        st.session_state.critic_mode = profile.get("critic_mode", "balanced")
     return st.session_state.critic_mode
 
 def set_starter_pack(pack_name: str):
@@ -495,3 +503,176 @@ def get_mood_options() -> dict:
         "chill": {"emoji": "😎", "genres": ["Slice of Life", "Comedy"]},
     }
 
+# ===== User Preference Functions =====
+def load_user_preferences() -> Dict[str, Any]:
+    """Load user preferences from JSON file with validation"""
+    try:
+        if not Path(PREFERENCES_FILE).exists():
+            # Create file with default preferences if it doesn't exist
+            save_user_preferences(DEFAULT_PREFERENCES.copy())
+            return DEFAULT_PREFERENCES.copy()
+        
+        with open(PREFERENCES_FILE, 'r', encoding='utf-8') as f:
+            prefs = json.load(f)
+            
+        # Validate and merge with defaults
+        validated_prefs = DEFAULT_PREFERENCES.copy()
+        for key, default_value in DEFAULT_PREFERENCES.items():
+            if key in prefs and isinstance(prefs[key], type(default_value)):
+                validated_prefs[key] = prefs[key]
+        
+        return validated_prefs
+        
+    except Exception as e:
+        logger.error(f"Failed to load user preferences: {str(e)}")
+        return DEFAULT_PREFERENCES.copy()
+
+def save_user_preferences(preferences: Dict[str, Any]):
+    """Save user preferences to JSON file"""
+    try:
+        # Ensure directory exists
+        Path(PREFERENCES_FILE).parent.mkdir(exist_ok=True)
+        
+        # Validate preferences against defaults
+        validated_prefs = {}
+        for key, default_value in DEFAULT_PREFERENCES.items():
+            if key in preferences and isinstance(preferences[key], type(default_value)):
+                validated_prefs[key] = preferences[key]
+            else:
+                validated_prefs[key] = default_value
+        
+        with open(PREFERENCES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(validated_prefs, f, ensure_ascii=False, indent=2)
+            
+        logger.info("User preferences saved successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to save user preferences: {str(e)}")
+        raise
+
+def migrate_old_preferences():
+    """
+    Migrate preferences from old format to new format if needed.
+    This handles backward compatibility when preferences structure changes.
+    """
+    try:
+        # Check if we need to migrate from profile-based preferences to standalone preferences
+        profile = load_current_profile()
+        prefs = load_user_preferences()
+        
+        # If preferences file is using defaults but profile has custom settings
+        if prefs == DEFAULT_PREFERENCES and profile.get("preferences"):
+            logger.info("Migrating old profile preferences to new format")
+            
+            # Migrate theme if it exists in profile
+            if "theme" in profile:
+                prefs["theme"] = profile["theme"]
+            
+            # Migrate critic mode if it exists in profile
+            if "critic_mode" in profile:
+                prefs["critic_mode"] = profile["critic_mode"]
+            
+            # Save the migrated preferences
+            save_user_preferences(prefs)
+            
+            # Clear the old preference data from profile to avoid duplication
+            if "theme" in profile:
+                del profile["theme"]
+            if "critic_mode" in profile:
+                del profile["critic_mode"]
+            
+            save_profile(profile)
+            logger.info("Migration completed successfully")
+            
+    except Exception as e:
+        logger.error(f"Failed to migrate old preferences: {str(e)}")
+        # Don't crash the app if migration fails
+
+def get_preference(key: str, default: Any = None) -> Any:
+    """Get a specific preference value"""
+    prefs = load_user_preferences()
+    return prefs.get(key, default)
+
+def set_preference(key: str, value: Any):
+    """Set a specific preference value and save"""
+    prefs = load_user_preferences()
+    
+    # Validate the value type against default
+    if key in DEFAULT_PREFERENCES and isinstance(value, type(DEFAULT_PREFERENCES[key])):
+        prefs[key] = value
+        save_user_preferences(prefs)
+        
+        # Update session state if applicable
+        if key in st.session_state:
+            st.session_state[key] = value
+            
+        logger.info(f"Set preference {key} to {value}")
+    else:
+        logger.warning(f"Invalid preference value: {key}={value}")
+
+def initialize_preferences_session():
+    """Initialize preference values in session state"""
+    prefs = load_user_preferences()
+    
+    for key, value in prefs.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+# Preference-specific helper functions
+def get_theme() -> str:
+    """Get current theme preference"""
+    if "theme" not in st.session_state:
+        st.session_state.theme = get_preference("theme", "dark")
+    return st.session_state.theme
+
+def set_theme(theme: str):
+    """Set theme preference"""
+    if theme in ["dark", "light", "system"]:
+        set_preference("theme", theme)
+        st.session_state.theme = theme
+
+def get_font() -> str:
+    """Get current font preference"""
+    if "font" not in st.session_state:
+        st.session_state.font = get_preference("font", "default")
+    return st.session_state.font
+
+def set_font(font: str):
+    """Set font preference"""
+    if font in ["default", "dyslexia", "large"]:
+        set_preference("font", font)
+        st.session_state.font = font
+
+def is_spoiler_free() -> bool:
+    """Check if spoiler-free mode is enabled"""
+    if "spoiler_free" not in st.session_state:
+        st.session_state.spoiler_free = get_preference("spoiler_free", False)
+    return st.session_state.spoiler_free
+
+def set_spoiler_free(enabled: bool):
+    """Set spoiler-free mode"""
+    set_preference("spoiler_free", enabled)
+    st.session_state.spoiler_free = enabled
+
+def is_dyslexia_mode() -> bool:
+    """Check if dyslexia mode is enabled"""
+    if "dyslexia_mode" not in st.session_state:
+        st.session_state.dyslexia_mode = get_preference("dyslexia_mode", False)
+    return st.session_state.dyslexia_mode
+
+def set_dyslexia_mode(enabled: bool):
+    """Set dyslexia mode"""
+    set_preference("dyslexia_mode", enabled)
+    st.session_state.dyslexia_mode = enabled
+
+def get_critic_mode_pref() -> str:
+    """Get critic mode preference"""
+    if "critic_mode_pref" not in st.session_state:
+        st.session_state.critic_mode_pref = get_preference("critic_mode", "balanced")
+    return st.session_state.critic_mode_pref
+
+def set_critic_mode_pref(mode: str):
+    """Set critic mode preference"""
+    if mode in ["default", "strict", "lenient", "balanced"]:
+        set_preference("critic_mode", mode)
+        st.session_state.critic_mode_pref = mode

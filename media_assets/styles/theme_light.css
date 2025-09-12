@@ -1,0 +1,28 @@
+/* media_assets/styles/theme_light.css */
+:root {
+    --primary: #FF2B2B;
+    --secondary: #F0F0F0;
+    --bg: #FAFAFA;
+    --text: #0E1117;
+    --border: #E0E0E0;
+}
+
+/* Additional light theme specific styles */
+.stButton > button {
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+}
+
+.stButton > button:hover {
+    background-color: #FF4B4B;
+    color: white;
+}
+
+.stSelectbox, .stTextInput, .stTextArea {
+    background-color: var(--secondary);
+    color: var(--text);
+    border-color: var(--border);
+}

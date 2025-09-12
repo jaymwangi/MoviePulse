@@ -7,14 +7,40 @@ from ui_components.MovieTile import MovieTile
 from ui_components.MovieGridView import MovieGridView
 from session_utils.state_tracker import init_session_state, get_current_theme
 from media_assets.styles import load_custom_css
-from session_utils.user_profile import init_profile
+from session_utils.user_profile import (
+    init_profile, initialize_preferences_session, 
+    get_theme, set_theme, get_font, set_font,
+    is_spoiler_free, set_spoiler_free, is_dyslexia_mode, set_dyslexia_mode,
+    get_critic_mode_pref, set_critic_mode_pref,
+    migrate_old_preferences
+)
 from service_clients.tmdb_client import tmdb_client, FallbackStrategy
 from streamlit.components.v1 import html
+import logging
+logger = logging.getLogger(__name__)
+
 
 # Add the project root to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+# Import theme applier from utils
+try:
+    from utils.theme_applier import apply_theme_settings, inject_custom_css
+    THEME_APPLIER_AVAILABLE = True
+except ImportError:
+    # Fallback if theme applier isn't available yet
+    THEME_APPLIER_AVAILABLE = False
+    apply_theme_settings = lambda: None
+    inject_custom_css = lambda: None
+
+# Import settings handler for sidebar integration
+try:
+    from utils.settings_handler import handle_settings_change
+    SETTINGS_HANDLER_AVAILABLE = True
+except ImportError:
+    SETTINGS_HANDLER_AVAILABLE = False
 
 # ----------------------- UTILITY FUNCTIONS -----------------------
 def is_tmdb_available():
@@ -30,25 +56,62 @@ def show_service_unavailable():
         if st.button("🔄 Retry Connection", key="retry_connection"):
             st.rerun()
 
+# Critic mode labels for display
+CRITIC_MODE_LABELS = {
+    "balanced": "🎭 Balanced Critic",
+    "arthouse": "🎨 Arthouse Critic", 
+    "blockbuster": "🎬 Blockbuster Critic",
+    "indie": "🌟 Indie Critic"
+}
+
 # ----------------------- CACHED FUNCTIONS -----------------------
 @st.cache_data(ttl=3600, show_spinner="Loading trending movies...")
 def get_cached_trending_movies(time_window="week"):
-    """Get trending movies with caching"""
+    """Get trending movies with caching and critic mode"""
     if not is_tmdb_available():
         raise RuntimeError("TMDB client not available")
-    return tmdb_client.get_trending_movies(time_window=time_window)
+    
+    try:
+        # Get current critic mode preference
+        critic_mode = get_critic_mode_pref()
+        
+        # Call the optimized TMDB client with critic_mode parameter
+        return tmdb_client.get_trending_movies(
+            time_window=time_window,
+            critic_mode=critic_mode
+        )
+    except Exception as e:
+        logger.error(f"Failed to get trending movies with critic mode: {str(e)}")
+        # Fallback to basic trending movies without critic mode
+        return tmdb_client.get_trending_movies(time_window=time_window)
 
 @st.cache_data(ttl=600, show_spinner="Searching movies...")
 def cached_search(query, filters=None, page=1):
-    """Cache search results for 10 minutes"""
+    """Cache search results for 10 minutes with critic mode"""
     if not is_tmdb_available():
         raise RuntimeError("TMDB client not available")
-    return tmdb_client.search_movies(
-        query=query,
-        filters=filters,
-        fallback_strategy=st.session_state.search_fallback_strategy,
-        page=page
-    )
+    
+    try:
+        # Get current critic mode preference
+        critic_mode = get_critic_mode_pref()
+        
+        # Call the optimized TMDB client with critic_mode parameter
+        return tmdb_client.search_movies(
+            query=query,
+            filters=filters,
+            fallback_strategy=st.session_state.search_fallback_strategy,
+            page=page,
+            critic_mode=critic_mode
+        )
+    except Exception as e:
+        logger.error(f"Failed to search with critic mode: {str(e)}")
+        # Fallback to basic search without critic mode
+        return tmdb_client.search_movies(
+            query=query,
+            filters=filters,
+            fallback_strategy=st.session_state.search_fallback_strategy,
+            page=page
+        )
 
 @st.cache_data(ttl=86400)  # Cache for 24 hours
 def get_cached_genres():
@@ -81,7 +144,18 @@ def configure_page():
         initial_sidebar_state="expanded"
     )
     init_session_state()
-    load_custom_css(get_current_theme())
+    
+    # Initialize user preferences and migrate old data
+    migrate_old_preferences()
+    initialize_preferences_session()
+    
+    # Apply theme settings before loading CSS
+    apply_theme_settings_wrapper()
+    
+    # Load custom CSS (fallback if theme applier not available)
+    if not THEME_APPLIER_AVAILABLE:
+        load_custom_css(get_current_theme())
+    
     html("<script src='media_assets/scripts/hover_test.js'></script>")
     
     # Initialize session state variables
@@ -100,6 +174,67 @@ def configure_page():
     for key in ['current_actor', 'current_director']:
         if key in st.session_state:
             del st.session_state[key]
+
+def apply_theme_settings_wrapper():
+    """Wrapper to apply theme settings with fallback handling"""
+    if THEME_APPLIER_AVAILABLE:
+        try:
+            apply_theme_settings()
+            inject_custom_css()
+        except Exception as e:
+            st.error(f"Theme application failed: {str(e)}")
+            # Fallback to basic theme application
+            apply_user_preferences_fallback()
+    else:
+        apply_user_preferences_fallback()
+
+def apply_user_preferences_fallback():
+    """Fallback theme application if theme applier is not available"""
+    current_theme = get_theme()
+    if 'current_theme' not in st.session_state or st.session_state.current_theme != current_theme:
+        st.session_state.current_theme = current_theme
+        load_custom_css(current_theme)
+    
+    # Apply accessibility settings
+    apply_accessibility_settings()
+
+def apply_accessibility_settings():
+    """Apply accessibility settings based on user preferences"""
+    if is_dyslexia_mode():
+        st.markdown("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=OpenDyslexic&display=swap');
+        * {
+            font-family: 'OpenDyslexic', sans-serif !important;
+            letter-spacing: 0.05em;
+            line-height: 1.8;
+            word-spacing: 0.1em;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    
+    font_pref = get_font()
+    if font_pref == "large":
+        st.markdown("""
+        <style>
+        .stApp * {
+            font-size: 18px !important;
+        }
+        h1 { font-size: 2.5rem !important; }
+        h2 { font-size: 2rem !important; }
+        h3 { font-size: 1.75rem !important; }
+        p, div { font-size: 18px !important; }
+        </style>
+        """, unsafe_allow_html=True)
+    elif font_pref == "dyslexia":
+        st.markdown("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=OpenDyslexic&display=swap');
+        * {
+            font-family: 'OpenDyslexic', sans-serif !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
 # ----------------------- STARTER PACK HANDLING -----------------------
 def check_first_time_user():
@@ -163,7 +298,7 @@ def render_search_bar():
             )
 
 def render_search_results():
-    """API-integrated results with enhanced filter support"""
+    """API-integrated results with enhanced filter support and critic mode"""
     if not st.session_state.get("global_search_query"):
         return
     
@@ -185,6 +320,9 @@ def render_search_results():
         with st.spinner("🔄 Applying filters..."):
             st.session_state.filter_execution_in_progress = False
             st.toast("Filters applied successfully!", icon="✅")
+    
+    # Get current critic mode for display
+    critic_mode = get_critic_mode_pref()
     
     with st.spinner(f"🔍 Searching for '{st.session_state.global_search_query}'..."):
         try:
@@ -209,7 +347,13 @@ def render_search_results():
                             st.rerun()
                     return
                 
+                # Display results with critic mode info
                 st.subheader(f"Results for: {st.session_state.global_search_query}", divider="red")
+                st.caption(f"🎯 Viewing through: {CRITIC_MODE_LABELS.get(critic_mode, 'Balanced Critic')}")
+                
+                # Apply spoiler-free mode if enabled
+                if is_spoiler_free():
+                    st.info("🔒 Spoiler-free mode enabled - sensitive content hidden")
                 
                 # Pagination controls
                 if total_pages > 1:
@@ -236,10 +380,14 @@ def render_search_results():
                 st.button("🔄 Retry", 
                          key="retry_search",
                          disabled=st.session_state.filter_execution_in_progress)
-                
+
 def render_trending_section():
-    """Trending movies with improved fallback handling"""
-    st.subheader("🔥 Trending This Week", divider="red")
+    """Trending movies with critic mode filtering"""
+    # Get current critic mode for display
+    critic_mode = get_critic_mode_pref()
+    
+    st.subheader(f"🔥 Trending This Week • {CRITIC_MODE_LABELS.get(critic_mode, '')}", divider="red")
+    st.caption(f"🎯 Viewing through: {CRITIC_MODE_LABELS.get(critic_mode, 'Balanced Critic')}")
     
     if not is_tmdb_available():
         show_service_unavailable()
@@ -331,14 +479,111 @@ def render_sidebar_filters_with_loading():
         st.session_state.filters_changed = False
         st.rerun()
 
+def render_quick_settings_sidebar():
+    """Render quick settings in sidebar with critic mode"""
+    st.sidebar.divider()
+    st.sidebar.header("⚙️ Quick Settings")
+    
+    # Theme selection
+    current_theme = get_theme()
+    new_theme = st.sidebar.selectbox(
+        "Theme",
+        options=["dark", "light", "system"],
+        index=["dark", "light", "system"].index(current_theme),
+        key="sidebar_theme_select",
+        label_visibility="collapsed"
+    )
+    
+    if new_theme != current_theme:
+        if SETTINGS_HANDLER_AVAILABLE:
+            handle_settings_change("theme", new_theme)
+        else:
+            set_theme(new_theme)
+            st.rerun()
+    
+    # Critic mode selection - handle 'default' value gracefully
+    current_critic_mode = get_critic_mode_pref()
+    
+    # Define valid critic modes and handle invalid/old values
+    valid_critic_modes = ["balanced", "arthouse", "blockbuster", "indie"]
+    
+    # If current mode is not valid, default to 'balanced'
+    if current_critic_mode not in valid_critic_modes:
+        current_critic_mode = "balanced"
+        # Update the preference to fix the invalid value
+        set_critic_mode_pref(current_critic_mode)
+    
+    new_critic_mode = st.sidebar.selectbox(
+        "Critic Style",
+        options=valid_critic_modes,
+        index=valid_critic_modes.index(current_critic_mode),
+        key="sidebar_critic_mode_select",
+        label_visibility="collapsed",
+        help="Choose which critic's perspective you want"
+    )
+    
+    if new_critic_mode != current_critic_mode:
+        if SETTINGS_HANDLER_AVAILABLE:
+            handle_settings_change("critic_mode", new_critic_mode)
+        else:
+            set_critic_mode_pref(new_critic_mode)
+            # Clear cache to get fresh recommendations with new critic mode
+            st.cache_data.clear()
+            st.rerun()
+    
+    # Quick accessibility toggles
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        current_spoiler = is_spoiler_free()
+        if st.button("👁️ Spoiler", help="Toggle spoiler protection", use_container_width=True):
+            if SETTINGS_HANDLER_AVAILABLE:
+                handle_settings_change("spoiler_free", not current_spoiler)
+            else:
+                set_spoiler_free(not current_spoiler)
+                st.rerun()
+    
+    with col2:
+        current_dyslexia = is_dyslexia_mode()
+        if st.button("♿ A11y", help="Toggle accessibility mode", use_container_width=True):
+            if SETTINGS_HANDLER_AVAILABLE:
+                handle_settings_change("dyslexia_mode", not current_dyslexia)
+            else:
+                set_dyslexia_mode(not current_dyslexia)
+                st.rerun()
+    
+    st.sidebar.divider()
+
+def render_sidebar_navigation():
+    """Add navigation items to sidebar including settings"""
+    st.sidebar.page_link("pages/page_09_user_settings.py", label="⚙️ Full Settings", icon=None)
+    st.sidebar.divider()
+
 def render_app_footer():
-    """Theme-aware footer with service status"""
+    """Theme-aware footer with service status and critic mode"""
     status = "✅ Online" if is_tmdb_available() else "❌ Offline"
+    critic_mode = get_critic_mode_pref()
+    
     st.markdown(f"""
     <div style="text-align: center; margin-top: 4rem; padding: 1rem; opacity: 0.6;">
-        <p>© 2024 MoviePulse | Data from TMDB | Service: {status} | v2.4</p>
+        <p>© 2024 MoviePulse | Data from TMDB | Service: {status} | 
+        Critic: {CRITIC_MODE_LABELS.get(critic_mode, 'Balanced')} | v2.4</p>
     </div>
     """, unsafe_allow_html=True)
+
+# ----------------------- SETTINGS HANDLER -----------------------
+def handle_settings_change(setting_type, value):
+    """Handle settings changes including critic mode"""
+    if setting_type == "theme":
+        set_theme(value)
+    elif setting_type == "spoiler_free":
+        set_spoiler_free(value)
+    elif setting_type == "dyslexia_mode":
+        set_dyslexia_mode(value)
+    elif setting_type == "critic_mode":
+        set_critic_mode_pref(value)
+        # Clear cache to get fresh recommendations with new critic mode
+        st.cache_data.clear()
+    st.rerun()
 
 # ----------------------- MAIN EXECUTION -----------------------
 if __name__ == "__main__":
@@ -353,6 +598,8 @@ if __name__ == "__main__":
     with st.sidebar:
         render_sidebar_filters_with_loading()
         render_advanced_search_options()
+        render_quick_settings_sidebar()
+        render_sidebar_navigation()
             
     # Main content area
     if not st.session_state.global_search_query:

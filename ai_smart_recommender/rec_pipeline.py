@@ -12,13 +12,14 @@ logger = logging.getLogger(__name__)
 class RecommendationPipeline:
     """
     Main recommendation pipeline that orchestrates multiple recommendation strategies
-    with primary and fallback execution flows, now supporting strategy weighting.
+    with primary and fallback execution flows, now supporting strategy weighting and critic mode.
     """
     def __init__(self, fallback_strategies: Optional[List[FallbackStrategy]] = None):
         """Initialize pipeline with optional fallback strategies"""
         self.primary_strategies: List[Tuple[BaseRecommender, float]] = []
         self.fallback_strategies: List[Tuple[FallbackStrategy, float]] = []
         self._initialized = False
+        self.critic_mode = "balanced"  # Default critic mode
 
         # ✅ Use injected fallback strategies if provided
         try:
@@ -40,6 +41,16 @@ class RecommendationPipeline:
         """Optional explicit initialization hook"""
         self._initialized = True
         logger.info("Recommendation pipeline initialized")
+
+    def set_critic_mode(self, mode: str):
+        """Set the critic mode for personalized recommendations"""
+        valid_modes = ["balanced", "arthouse", "blockbuster", "indie", "critic", "mainstream"]
+        if mode in valid_modes:
+            self.critic_mode = mode
+            logger.info(f"Critic mode set to: {mode}")
+        else:
+            logger.warning(f"Invalid critic mode: {mode}. Using default 'balanced'")
+            self.critic_mode = "balanced"
 
     @property
     def is_ready(self) -> bool:
@@ -81,10 +92,11 @@ class RecommendationPipeline:
             f"(priority: {strategy.fallback_priority}, weight: {weight}, "
             f"total: {len(self.fallback_strategies)})"
         )
+
     def run(self, context: Dict) -> List[Recommendation]:
         """
         Execute the recommendation pipeline with the given context.
-        Applies strategy weights to recommendation scores.
+        Applies strategy weights to recommendation scores and supports critic mode.
         
         Args:
             context: Dictionary containing all recommendation parameters
@@ -105,26 +117,42 @@ class RecommendationPipeline:
         return self._post_process(recommendations, context)
 
     def _prepare_context(self, context: Dict) -> Dict:
-        """Prepare and validate the context dictionary"""
+        """Prepare and validate the context dictionary with critic mode"""
         context.setdefault('limit', constants.DEFAULT_REC_LIMIT)
         context.setdefault('enable_diversity', True)
+        # Set critic mode from context or use pipeline default
+        context.setdefault('critic_mode', self.critic_mode)
         return context
 
     def _execute_primary_strategies(self, context: Dict) -> List[Recommendation]:
-        """Execute all primary strategies with weight application"""
+        """Execute all primary strategies with weight application and critic mode"""
         recommendations = []
         
         for strategy, weight in self.primary_strategies:
             try:
-                if results := strategy.execute(context):
+                # Pass critic mode to each strategy if it supports it
+                strategy_context = context.copy()
+                if hasattr(strategy, 'set_critic_mode'):
+                    try:
+                        strategy.set_critic_mode(context['critic_mode'])
+                    except Exception as e:
+                        logger.warning(
+                            f"Strategy {strategy.strategy_name} failed to set critic mode: {e}"
+                        )
+                
+                if results := strategy.execute(strategy_context):
                     for rec in results:
                         rec.score *= weight  # Apply weight to score
                         rec.source_strategy = strategy.strategy_name
                         rec.is_fallback = False
+                        # Track which critic mode was used for this recommendation
+                        rec.metadata = getattr(rec, 'metadata', {})
+                        rec.metadata['critic_mode'] = context['critic_mode']
                     recommendations.extend(results)
                     logger.debug(
                         f"Primary strategy {strategy.strategy_name} "
-                        f"(weight: {weight}) returned {len(results)} recommendations"
+                        f"(critic: {context['critic_mode']}, weight: {weight}) "
+                        f"returned {len(results)} recommendations"
                     )
                     
                     if len(recommendations) >= context['limit']:
@@ -157,15 +185,29 @@ class RecommendationPipeline:
                 continue
                 
             try:
-                if results := fallback.execute(context):
+                # Pass critic mode to fallback strategies if they support it
+                fallback_context = context.copy()
+                if hasattr(fallback, 'set_critic_mode'):
+                    try:
+                        fallback.set_critic_mode(context['critic_mode'])
+                    except Exception as e:
+                        logger.warning(
+                            f"Fallback {fallback.strategy_name} failed to set critic mode: {e}"
+                        )
+                
+                if results := fallback.execute(fallback_context):
                     for rec in results:
                         rec.score *= weight  # Apply weight to score
                         rec.source_strategy = fallback.strategy_name
                         rec.is_fallback = True
+                        # Track critic mode for fallback recommendations too
+                        rec.metadata = getattr(rec, 'metadata', {})
+                        rec.metadata['critic_mode'] = context['critic_mode']
                     recommendations.extend(results)
                     logger.info(
                         f"Activated fallback: {fallback.strategy_name} "
-                        f"(priority: {fallback.fallback_priority}, weight: {weight})"
+                        f"(priority: {fallback.fallback_priority}, weight: {weight}, "
+                        f"critic: {context['critic_mode']})"
                     )
                     break
                     

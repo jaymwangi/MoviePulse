@@ -1,9 +1,7 @@
 {
-  "preferred_genres": [],
-  "preferred_moods": [],
-  "watch_history": [],
-  "disliked_genres": [],
-  "disliked_moods": [],
-  "preferred_actors": [],
-  "preferred_directors": []
+  "theme": "dark",
+  "font": "default",
+  "spoiler_free": false,
+  "dyslexia_mode": false,
+  "critic_mode": "balanced"
 }

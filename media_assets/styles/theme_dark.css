@@ -1,0 +1,28 @@
+/* media_assets/styles/theme_dark.css */
+:root {
+    --primary: #FF4B4B;
+    --secondary: #1E1E1E;
+    --bg: #0E1117;
+    --text: #FAFAFA;
+    --border: #333333;
+}
+
+/* Additional dark theme specific styles */
+.stButton > button {
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+}
+
+.stButton > button:hover {
+    background-color: #FF2B2B;
+    color: white;
+}
+
+.stSelectbox, .stTextInput, .stTextArea {
+    background-color: var(--secondary);
+    color: var(--text);
+    border-color: var(--border);
+}

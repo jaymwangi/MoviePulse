@@ -80,3 +80,33 @@ class Video:
     key: str
     type: str
     site: str
+
+# Theme and styling constants
+THEME_OPTIONS = ["dark", "light", "system"]
+FONT_OPTIONS = ["default", "dyslexia", "large"]
+CRITIC_MODE_OPTIONS = ["default", "strict", "lenient", "arthouse", "blockbuster", "indie"]
+
+# Accessibility options
+FONT_OPTIONS = ["default", "dyslexia-friendly", "large-text"]
+HIGH_CONTRAST_OPTIONS = [False, True]
+SPOILER_FREE_OPTIONS = [False, True]
+DYSLEXIA_MODE_OPTIONS = [False, True]
+
+# CSS classes for theme-aware styling
+THEME_CSS_CLASSES = {
+    "primary": "custom-primary",
+    "secondary": "custom-secondary",
+    "bg": "custom-bg",
+    "text": "custom-text",
+    "border": "custom-border",
+    "card": "theme-aware-card"
+}
+
+# Path constants for theme assets
+THEME_ASSETS_DIR = Path(__file__).parent.parent / "media_assets" / "styles"
+DARK_THEME_CSS = THEME_ASSETS_DIR / "theme_dark.css"
+LIGHT_THEME_CSS = THEME_ASSETS_DIR / "theme_light.css"
+ACCESSIBILITY_CSS = THEME_ASSETS_DIR / "accessibility.css"
+
+# Ensure theme directories exist
+THEME_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
