@@ -30,6 +30,7 @@ from ai_smart_recommender.recommender_engine.strategy_interfaces.hybrid_model im
 from ai_smart_recommender.user_personalization.watch_history import WatchHistory
 from ai_local_modules.tldr_summarizer import TLDRGenerator
 from ui_components.QuickSummary import render_quick_summary
+from utils.spoiler_handler import render_spoiler_content, spoiler_guard  # Added import
 
 tldr_generator = TLDRGenerator()
 
@@ -119,6 +120,19 @@ def get_cached_recommendations(movie_id: int):
         logger.error(f"Recommendation failed for movie {movie_id}: {str(e)}", exc_info=True)
         return []
 
+# ----------------------- SPOILER-PROTECTED FUNCTIONS -----------------------
+@spoiler_guard
+def get_movie_runtime(movie_id):
+    """Function that might return spoiler content"""
+    details = get_cached_movie_details(movie_id)
+    return _format_runtime(details.runtime) if details.runtime else "N/A"
+
+@spoiler_guard  
+def get_plot_details(movie_id):
+    """Function that returns plot details (potential spoilers)"""
+    details = get_cached_movie_details(movie_id)
+    return details.overview or "No plot details available"
+
 # ----------------------- UTILITY FUNCTIONS -----------------------
 def _format_runtime(minutes: int) -> str:
     """Convert runtime to HHh MMm format"""
@@ -197,8 +211,12 @@ def render_title_section(details, movie_id):
     metadata = []
     if details.vote_average > 0:
         metadata.append(f"⭐ {details.vote_average:.1f}/10")
-    if details.runtime:
-        metadata.append(f"🕒 {_format_runtime(details.runtime)}")
+    
+    # Use spoiler-protected runtime function
+    runtime = get_movie_runtime(movie_id)
+    if runtime != "N/A":
+        metadata.append(f"🕒 {runtime}")
+    
     if getattr(details, "adult", False):
         metadata.append("🔞 Adult Content")
     if metadata:
@@ -226,8 +244,9 @@ def render_title_section(details, movie_id):
     render_tldr_section(movie_data_for_tldr)
     # --- end TL;DR ---
 
+    # Use spoiler protection for the full overview
     with st.expander("Full Overview", expanded=False):
-        st.markdown(details.overview or "*No overview available*")
+        render_spoiler_content(details.overview or "*No overview available*", "plot")
 
     render_watchlist_button(movie_id, details)
 
@@ -317,6 +336,13 @@ def render_production_details(details):
     st.markdown(f"**Revenue:** {_format_currency(details.revenue)}")
     if hasattr(details, "spoken_languages"):
         st.markdown(f"**Languages:** {', '.join(l.name for l in details.spoken_languages[:3])}")
+    
+    # Add spoiler-protected plot details section
+    with st.expander("Detailed Plot Analysis", expanded=False):
+        render_spoiler_content(
+            st.write("In-depth analysis of plot structure, character arcs, and narrative devices..."),
+            "detailed_analysis"
+        )
 
 def render_recommendations(movie_id: int):
     """Enhanced recommendation display using hybrid recommender output"""

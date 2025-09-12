@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
-from ui_components.BadgeProgress import BadgeProgress
+from app_ui.components.BadgeProgress import BadgeProgress
 from session_utils.user_profile import update_cinephile_stats, get_user_id, load_current_profile
 from service_clients.tmdb_client import tmdb_client
 

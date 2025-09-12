@@ -2,7 +2,7 @@ import streamlit as st
 from typing import List, Optional, Dict, Union
 from session_utils.state_tracker import get_user_prefs
 from core_config.constants import Movie
-from ui_components.MovieTile import MovieTile
+from app_ui.components.MovieTile import MovieTile
 
 # Constants
 INITIAL_LOAD_COUNT = 12

@@ -1,18 +1,21 @@
-# -*- coding: utf-8 -*-
+# app_ui/components/BadgeDisplay.py
+
 import streamlit as st
-from typing import Dict, List, Optional, Tuple
 import json
 import os
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+from media_assets.styles.components import badge_styles
 
 class BadgeProgress:
     """A reusable component to display badge progress with visual progress bars"""
+    
+    # Tier order for sorting
+    TIER_ORDER = {"gold": 0, "silver": 1, "bronze": 2}
 
-    TIER_ORDER = {"gold": 0, "silver": 1, "bronze": 2}  # Tier sort priority
-
-    def __init__(self, user_id: str, badges_file: str = "static_data/cinephile_badges.json"):
+    def __init__(self, user_id: str = "default_user", badges_file: str = "static_data/cinephile_badges.json"):
         """
-        Initialize the BadgeProgress component.
+        Initialize the BadgeDisplay component.
         
         Args:
             user_id: Unique identifier for the user
@@ -21,6 +24,7 @@ class BadgeProgress:
         self.user_id = user_id
         self.badges_file = badges_file
         self.badge_data = self._load_badge_data()
+        self.styles = badge_styles()
 
     def _load_badge_data(self) -> Dict:
         """Load badge definitions from JSON file with enhanced error handling"""
@@ -62,7 +66,8 @@ class BadgeProgress:
         user_stats: Dict[str, int],
         filter_tier: Optional[str] = None,
         columns_per_row: int = 3,
-        show_locked: bool = True
+        show_locked: bool = True,
+        title: str = "Your Badge Progress"
     ) -> None:
         """
         Display all badges with progress bars based on user stats.
@@ -72,6 +77,7 @@ class BadgeProgress:
             filter_tier: Optional tier to filter by ("bronze", "silver", "gold")
             columns_per_row: Number of badges to display per row
             show_locked: Whether to show locked badges or only unlocked ones
+            title: Section title
         """
         if not self.badge_data.get("badges"):
             st.warning("No badge data available")
@@ -82,6 +88,12 @@ class BadgeProgress:
         if not badges:
             st.info(f"No {filter_tier if filter_tier else ''} badges available")
             return
+
+        # Display title
+        st.subheader(title)
+        
+        # Apply styles
+        st.markdown(self.styles, unsafe_allow_html=True)
 
         # Create responsive columns
         cols = st.columns(columns_per_row)
@@ -137,35 +149,102 @@ class BadgeProgress:
         progress = badge["progress"]
         unlocked = badge["unlocked"]
 
-        with st.container():
-            # Badge header
-            st.markdown(
-                f"""
-                <div style="border-left: 4px solid {tier_color}; padding-left: 1rem;">
-                    <h4 style="margin-bottom: 0.2rem;">
-                        {badge.get('icon', '')} {badge.get('name', '')}
-                    </h4>
-                    <p style="color: {tier_color}; margin-top: 0;">{tier} Tier</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        # Use badge container styling
+        badge_class = "badge medium"
+        if not unlocked:
+            badge_class += " locked"
 
-            # Progress bar
-            st.progress(int(progress))
-            st.caption(f"{current}/{threshold} ({progress:.0f}%)")
+        badge_html = f"""
+        <div class="{badge_class}">
+            <div style="border-left: 4px solid {tier_color}; padding-left: 1rem;">
+                <div class="badge-icon">{badge.get('icon', '🏆')}</div>
+                <div class="badge-name">{badge.get('name', '')}</div>
+                <div style="color: {tier_color}; margin-top: 0.2rem;">{tier} Tier</div>
+            </div>
+        </div>
+        """
 
-            # Description
-            st.markdown(f"*{badge.get('description', '')}*")
+        st.markdown(badge_html, unsafe_allow_html=True)
+        
+        # Progress bar
+        st.progress(int(progress))
+        st.caption(f"{current}/{threshold} ({progress:.0f}%)")
 
-            # Unlock status
-            if unlocked:
-                st.success(f"✓ {badge.get('unlock_message', 'Unlocked!')}")
-            else:
-                remaining = threshold - current
-                st.info(f"🔒 {remaining} more to unlock")
+        # Description
+        st.markdown(f"*{badge.get('description', '')}*")
 
-            st.divider()
+        # Unlock status
+        if unlocked:
+            st.success(f"✓ {badge.get('unlock_message', 'Unlocked!')}")
+        else:
+            remaining = threshold - current
+            st.info(f"🔒 {remaining} more to unlock")
+
+        st.divider()
+
+    def render_badge_grid(self, user_stats: Dict[str, int], columns: int = 3, title: str = "Your Badges"):
+        """
+        Render a grid of badges in a more compact format.
+        
+        Args:
+            user_stats: Dictionary of user statistics
+            columns: Number of columns in the grid
+            title: Section title
+        """
+        if not self.badge_data.get("badges"):
+            return
+
+        st.subheader(title)
+        st.markdown(self.styles, unsafe_allow_html=True)
+
+        # Create CSS grid
+        grid_html = f"""
+        <div class="badge-grid" style="display: grid; grid-template-columns: repeat({columns}, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+        """
+
+        for badge in self.badge_data["badges"]:
+            tracking_field = badge.get("tracking_field")
+            current = user_stats.get(tracking_field, 0)
+            threshold = badge.get("threshold", 1)
+            unlocked = current >= threshold
+            tier_color = self._get_tier_color(badge.get("tier", ""))
+
+            badge_class = "badge small"
+            if not unlocked:
+                badge_class += " locked"
+
+            grid_html += f"""
+            <div class="{badge_class}" title="{badge.get('description', '')}">
+                <span class="badge-icon">{badge.get('icon', '🏆')}</span>
+                <span class="badge-name">{badge.get('name', '')}</span>
+                {f'<span class="badge-progress">{current}/{threshold}</span>' if not unlocked else ''}
+            </div>
+            """
+
+        grid_html += "</div>"
+        st.markdown(grid_html, unsafe_allow_html=True)
+
+    def render_achievement_summary(self, user_stats: Dict[str, int]):
+        """Render a summary of achievement progress"""
+        if not self.badge_data.get("badges"):
+            return
+
+        total_badges = len(self.badge_data["badges"])
+        unlocked_badges = sum(
+            1 for badge in self.badge_data["badges"]
+            if user_stats.get(badge.get("tracking_field", ""), 0) >= badge.get("threshold", 1)
+        )
+
+        st.subheader("Achievement Summary")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Badges", total_badges)
+        with col2:
+            st.metric("Unlocked", unlocked_badges)
+        with col3:
+            progress = (unlocked_badges / total_badges * 100) if total_badges > 0 else 0
+            st.metric("Completion", f"{progress:.1f}%")
 
     def get_user_badge_summary(self, user_stats: Dict[str, int]) -> Dict[str, Tuple[int, int, bool]]:
         """Get summary of badge progress for the user"""

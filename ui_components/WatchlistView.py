@@ -1,6 +1,6 @@
 import streamlit as st
 from session_utils.watchlist_manager import load_watchlist
-from ui_components import MovieTile  # Assuming you have a MovieTile component
+from app_ui.components import MovieTile  # Assuming you have a MovieTile component
 
 def render_watchlist_grid():
     """Display watchlist movies in a responsive grid"""

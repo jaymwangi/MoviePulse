@@ -63,7 +63,7 @@ class Movie:
                  vote_average: float, runtime: Optional[int] = None,
                  genres: Optional[List[Genre]] = None, directors: Optional[List[Person]] = None,
                  cast: Optional[List[Person]] = None, similar_movies: Optional[List[int]] = None,
-                 videos: Optional[List[Video]] = None):
+                 videos: Optional[List[Video]] = None, vote_count: int = 0):
         self.id = id
         self.title = title
         self.overview = overview
@@ -71,12 +71,14 @@ class Movie:
         self.poster_path = poster_path
         self.backdrop_path = backdrop_path
         self.vote_average = vote_average
+        self.vote_count = vote_count  # Add this
         self.runtime = runtime
         self.genres = genres or []
         self.directors = directors or []
         self.cast = cast or []
         self.similar_movies = similar_movies or []
         self.videos = videos or []
+        self.popularity = 0.0  # Initialize popularity
 
 def configure_logging():
     """Set up consistent structured logging with rotating file handler."""
@@ -247,11 +249,12 @@ class TMDBClient:
         query: str,
         filters: Optional[Dict] = None,
         fallback_strategy: FallbackStrategy = FallbackStrategy.RELAX_GRADUAL,
-        page: int = 1
+        page: int = 1,
+        critic_mode: str = "balanced"
     ) -> Tuple[List[Movie], int]:
-        """Search movies with complete data for MovieTile."""
+        """Search movies with complete data for MovieTile and critic mode filtering."""
         search_start = time.perf_counter()
-        logger.info(f"Starting search for '{query}' with filters: {filters}")
+        logger.info(f"Starting search for '{query}' with filters: {filters}, critic mode: {critic_mode}")
         
         try:
             # Build search params
@@ -280,12 +283,18 @@ class TMDBClient:
                             "append_to_response": "credits",
                             "language": "en-US"
                         })
-                        movies.append(self._parse_movie_result(movie_data))
+                        parsed_movie = self._parse_movie_result(movie_data)
+                        movies.append(parsed_movie)
                     except Exception as e:
                         logger.warning(f"Failed to get full details for movie {m.get('id')}: {str(e)}")
                         # Fallback to basic data if full details fail
-                        movies.append(self._parse_movie_result(m))
-                        
+                        parsed_movie = self._parse_movie_result(m)
+                        movies.append(parsed_movie)
+                
+                # Apply critic mode filtering
+                if critic_mode != "balanced":
+                    movies = self._apply_critic_mode(movies, critic_mode)
+                    
                 result = movies, search_data.get("total_pages", 1)
                 
             processing_duration = time.perf_counter() - processing_start
@@ -295,7 +304,8 @@ class TMDBClient:
                 f"{PERF_LOG_PREFIX} Search completed in {total_duration:.4f}s | "
                 f"API: {api_duration:.4f}s | "
                 f"Processing: {processing_duration:.4f}s | "
-                f"Results: {len(result[0])} movies"
+                f"Results: {len(result[0])} movies | "
+                f"Critic Mode: {critic_mode}"
             )
             return result
             
@@ -304,7 +314,80 @@ class TMDBClient:
             logger.error(f"{PERF_LOG_PREFIX} Search failed after {elapsed:.4f}s: {str(e)}")
             st.error(f"Search failed: {str(e)}")
             return [], 0
+
+    def _apply_critic_mode(self, movies: List[Movie], critic_mode: str) -> List[Movie]:
+        """Apply critic mode filtering to movie results.
         
+        Args:
+            movies: List of Movie objects to filter
+            critic_mode: One of "balanced", "arthouse", "blockbuster", "indie"
+            
+        Returns:
+            Filtered and sorted list of Movie objects
+        """
+        if critic_mode == "balanced" or not movies:
+            return movies  # No filtering for balanced mode
+        
+        logger.info(f"Applying critic mode filtering: {critic_mode} to {len(movies)} movies")
+        filter_start = time.perf_counter()
+        
+        try:
+            if critic_mode == "arthouse":
+                # Filter for arthouse films (high rating, low popularity, certain genres)
+                filtered_movies = [
+                    m for m in movies 
+                    if m.vote_average >= 7.0  # High rating
+                    and getattr(m, 'popularity', 0) < 50.0  # Lower popularity
+                ]
+                # Sort by rating (descending), then popularity (ascending)
+                filtered_movies.sort(key=lambda x: (
+                    -x.vote_average,  # High rating first
+                    getattr(x, 'popularity', 0)  # Lower popularity first
+                ))
+                
+            elif critic_mode == "blockbuster":
+                # Filter for blockbuster films (high popularity, certain genres)
+                filtered_movies = [
+                    m for m in movies 
+                    if getattr(m, 'popularity', 0) > 100.0  # High popularity
+                    and m.vote_count > 1000  # Many votes (FIXED: was 'x.vote_count')
+                ]
+                # Sort by popularity (descending), then vote count (descending)
+                filtered_movies.sort(key=lambda x: (
+                    -getattr(x, 'popularity', 0),  # High popularity first
+                    -x.vote_count  # Many votes first
+                ))
+                
+            elif critic_mode == "indie":
+                # Filter for indie films (good rating, moderate popularity, certain genres)
+                filtered_movies = [
+                    m for m in movies 
+                    if m.vote_average >= 6.5  # Good rating
+                    and 20.0 < getattr(m, 'popularity', 0) < 80.0  # Moderate popularity
+                ]
+                # Sort by rating (descending), then popularity (ascending)
+                filtered_movies.sort(key=lambda x: (
+                    -x.vote_average,  # Good rating first
+                    getattr(x, 'popularity', 0)  # Moderate popularity
+                ))
+                
+            else:
+                logger.warning(f"Unknown critic mode: {critic_mode}, using balanced mode")
+                return movies
+            
+            elapsed = time.perf_counter() - filter_start
+            logger.info(
+                f"{PERF_LOG_PREFIX} Critic mode filtering completed in {elapsed:.3f}s | "
+                f"Original: {len(movies)} | Filtered: {len(filtered_movies)}"
+            )
+            
+            return filtered_movies
+            
+        except Exception as e:
+            elapsed = time.perf_counter() - filter_start
+            logger.error(f"{PERF_LOG_PREFIX} Critic mode filtering failed after {elapsed:.3f}s: {str(e)}")
+            return movies  # Return original list on error
+
     def get_popular_people(self, limit: int = 200) -> List[Person]:
         """Get list of popular actors/actresses with instrumentation"""
         logger.info(f"Fetching top {limit} popular people")
@@ -662,10 +745,10 @@ class TMDBClient:
             logger.error(f"Failed to fetch genres: {str(e)}")
             return []
         
-    def get_trending_movies(self, time_window: str = "week", page: int = 1) -> Tuple[List[Movie], int]:
-        """Get trending movies with complete data including runtime."""
+    def get_trending_movies(self, time_window: str = "week", page: int = 1, critic_mode: str = "balanced") -> Tuple[List[Movie], int]:
+        """Get trending movies with complete data including runtime and critic mode filtering."""
         trending_start = time.perf_counter()
-        logger.info(f"Fetching trending movies for {time_window} (page {page})")
+        logger.info(f"Fetching trending movies for {time_window} (page {page}) with critic mode: {critic_mode}")
         
         # Validate input parameters first
         if time_window not in ["day", "week"]:
@@ -694,13 +777,19 @@ class TMDBClient:
                             f"movie/{movie_id}",
                             {"append_to_response": "credits", "language": "en-US"}
                         )
-                        movies.append(self._parse_movie_result(full_data))
+                        parsed_movie = self._parse_movie_result(full_data)
+                        movies.append(parsed_movie)
                     except Exception as full_detail_error:
                         logger.warning(f"Couldn't get full details for movie {movie_id}, using basic data: {str(full_detail_error)}")
-                        movies.append(self._parse_movie_result(movie_data))
+                        parsed_movie = self._parse_movie_result(movie_data)
+                        movies.append(parsed_movie)
                 except Exception as e:
                     logger.warning(f"Failed to process trending movie {movie_data.get('id')}: {str(e)}")
                     continue
+            
+            # Apply critic mode filtering
+            if critic_mode != "balanced":
+                movies = self._apply_critic_mode(movies, critic_mode)
                     
             total_pages = min(data.get("total_pages", 1), 500)  # TMDB API limits to 500 pages
             processing_duration = time.perf_counter() - processing_start
@@ -710,6 +799,7 @@ class TMDBClient:
             logger.info(
                 f"{PERF_LOG_PREFIX} Trending movies fetched | "
                 f"Count: {len(movies)} | "
+                f"Critic Mode: {critic_mode} | "
                 f"Total: {total_duration:.3f}s | "
                 f"API: {api_duration:.3f}s | "
                 f"Processing: {processing_duration:.3f}s"
@@ -929,7 +1019,7 @@ class TMDBClient:
         finally:
             elapsed = time.perf_counter() - steps_start
             logger.debug(f"{PERF_LOG_PREFIX} Step generation took {elapsed:.6f}s")
-
+            
     def _parse_movie_result(self, data: Dict, full_details: bool = False) -> Movie:
         """Parse movie result with complete data for MovieTile."""
         parse_start = time.perf_counter()
@@ -967,6 +1057,7 @@ class TMDBClient:
                 poster_path=data.get("poster_path", ""),
                 backdrop_path=data.get("backdrop_path", ""),
                 vote_average=data.get("vote_average", 0),
+                vote_count=data.get("vote_count", 0),  # Add vote_count
                 runtime=runtime,
                 genres=genres,
                 directors=[
@@ -1000,6 +1091,9 @@ class TMDBClient:
                 ] if full_details else []
             )
             
+            # Add popularity for critic mode filtering
+            movie.popularity = data.get("popularity", 0.0)
+            
             # Add raw data for debugging
             movie.raw_data = data
             elapsed = time.perf_counter() - parse_start
@@ -1009,7 +1103,7 @@ class TMDBClient:
         except Exception as e:
             elapsed = time.perf_counter() - parse_start
             logger.error(f"{PERF_LOG_PREFIX} Failed to parse movie after {elapsed:.6f}s: {str(e)}")
-            raise
+        raise
 
     def _get_genre_ids_by_names(self, genre_names: List[str]) -> List[int]:
         """Convert genre names to IDs with timing."""

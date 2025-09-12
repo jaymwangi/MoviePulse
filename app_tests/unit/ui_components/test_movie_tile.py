@@ -1,7 +1,7 @@
 import pytest
 import logging
 from unittest.mock import patch
-from ui_components.MovieTile import MovieTile
+from app_ui.components.MovieTile import MovieTile
 
 # Setup logger
 logger = logging.getLogger(__name__)

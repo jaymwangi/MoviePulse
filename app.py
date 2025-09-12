@@ -3,7 +3,7 @@ import os
 import streamlit as st
 from ui_components.HeaderBar import render_app_header
 from ui_components.SidebarFilters import render_sidebar_filters, get_active_filters
-from ui_components.MovieTile import MovieTile
+from app_ui.components.MovieTile import MovieTile
 from ui_components.MovieGridView import MovieGridView
 from session_utils.state_tracker import init_session_state, get_current_theme
 from media_assets.styles import load_custom_css

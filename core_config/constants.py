@@ -84,7 +84,7 @@ class Video:
 # Theme and styling constants
 THEME_OPTIONS = ["dark", "light", "system"]
 FONT_OPTIONS = ["default", "dyslexia", "large"]
-CRITIC_MODE_OPTIONS = ["default", "strict", "lenient", "arthouse", "blockbuster", "indie"]
+CRITIC_MODE_OPTIONS = ["balanced", "strict", "lenient", "arthouse", "blockbuster", "indie", "default"]
 
 # Accessibility options
 FONT_OPTIONS = ["default", "dyslexia-friendly", "large-text"]
